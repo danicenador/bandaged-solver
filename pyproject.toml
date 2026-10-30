@@ -1,0 +1,25 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "rubik"
+version = "0.1.0"
+description = "3x3x3 Rubik's cube engine with bandaging and an algorithm search engine (Rust core)"
+requires-python = ">=3.9"
+classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: Implementation :: CPython"]
+
+[project.optional-dependencies]
+notebook = ["matplotlib", "pandas", "jupyter"]
+
+[dependency-groups]
+dev = ["maturin>=1.7,<2", "pytest>=8"]
+
+[tool.uv]
+# Rebuild the extension on `uv sync` / `uv run` when the Rust sources change.
+cache-keys = [{ file = "pyproject.toml" }, { file = "Cargo.toml" }, { file = "src/**/*.rs" }]
+
+[tool.maturin]
+features = ["python", "pyo3/extension-module"]
+python-source = "python"
+module-name = "rubik._rubik"

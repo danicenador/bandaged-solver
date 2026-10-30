@@ -1,0 +1,6 @@
+/target
+/.venv
+__pycache__/
+*.pyd
+*.so
+.ipynb_checkpoints/

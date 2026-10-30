@@ -1,0 +1,4 @@
+[env]
+# pyo3 >= 0.30 links Python via `raw-dylib` on Windows, which on the GNU toolchain needs a full
+# MinGW install (dlltool + as). Link against the interpreter's python3.lib instead.
+PYO3_USE_RAW_DYLIB = "0"
