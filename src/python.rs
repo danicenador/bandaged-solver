@@ -4,6 +4,7 @@ use crate::cube::{Bandage, Cube, Effect};
 use crate::geometry::{parse_cubie, NAMES, N_CUBIES};
 use crate::moves::{format_alg, invert, length, parse_alg, parse_moveset, qtm_length, simplify};
 use crate::search::{Kind, Query, SearchStats, Solver};
+use crate::study::{profile, Rng, StudyConfig, ALG_KINDS};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -367,6 +368,68 @@ fn analyze<'py>(py: Python<'py>, alg: &str, bandage: Option<&Bound<'_, PyAny>>) 
     effect_dict(py, &c.state.effect())
 }
 
+/// Difficulty KPIs of a bandaged cube with face turns (see the README's difficulty study).
+///
+/// Returns a dict: states (exact unless states_exact is False), shapes, group_order, complete,
+/// gods_number (exact, complete puzzles only), gods_lower, gods_counting, mean_distance
+/// (a lower bound unless mean_distance_exact), branching, layer_sizes and, per algorithm kind
+/// (edge3, corner3, edge_flip, corner_twist), min_len / exact / searched_to / possible /
+/// coverage / example.
+#[pyfunction]
+#[pyo3(signature = (bandage = None, max_nodes = 10_000_000, samples = 112, ball_nodes = 300_000,
+                    alg_time = 10.0, seed = 1))]
+#[allow(clippy::too_many_arguments)]
+fn difficulty<'py>(
+    py: Python<'py>,
+    bandage: Option<&Bound<'_, PyAny>>,
+    max_nodes: usize,
+    samples: usize,
+    ball_nodes: usize,
+    alg_time: f64,
+    seed: u64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let b = bandage_from(bandage)?;
+    let cfg = StudyConfig { max_nodes, samples, ball_nodes, alg_time_limit: alg_time, seed, ..StudyConfig::default() };
+    let p = py.detach(|| profile(&b, &cfg));
+    let d = PyDict::new(py);
+    d.set_item("bandage", &p.spec)?;
+    d.set_item("states", p.states)?;
+    d.set_item("states_exact", p.states_exact)?;
+    d.set_item("shapes", p.shapes)?;
+    d.set_item("group_order", p.group_order)?;
+    d.set_item("complete", p.complete)?;
+    d.set_item("gods_number", p.gods_number)?;
+    d.set_item("gods_lower", p.gods_lower)?;
+    d.set_item("gods_counting", p.gods_counting)?;
+    d.set_item("mean_distance", p.mean_distance)?;
+    d.set_item("mean_distance_exact", p.mean_distance_exact)?;
+    d.set_item("branching", p.branching)?;
+    d.set_item("legal_at_solved", p.legal_at_solved)?;
+    d.set_item("free_corners", p.free_corners)?;
+    d.set_item("free_edges", p.free_edges)?;
+    d.set_item("layer_sizes", p.layer_sizes.clone())?;
+    d.set_item("antipode", &p.antipode)?;
+    for (kind, a) in ALG_KINDS.iter().zip(&p.algs) {
+        let k = PyDict::new(py);
+        k.set_item("min_len", a.min_len)?;
+        k.set_item("exact", a.exact)?;
+        k.set_item("searched_to", a.searched_to)?;
+        k.set_item("possible", a.possible)?;
+        k.set_item("coverage", a.coverage)?;
+        k.set_item("example", &a.example)?;
+        d.set_item(kind.name(), k)?;
+    }
+    d.set_item("seconds", p.seconds)?;
+    Ok(d)
+}
+
+/// A random bandage made of `bonds` glued pairs of adjacent cubies, as a bandage string.
+#[pyfunction]
+#[pyo3(signature = (bonds, seed = 1))]
+fn random_bandage(bonds: usize, seed: u64) -> String {
+    crate::study::random_bandage(&mut Rng::new(seed), bonds).spec()
+}
+
 /// Names of the 26 cubies: 8 corners, 12 edges, 6 centers.
 #[pyfunction]
 fn cubie_names() -> Vec<&'static str> {
@@ -382,5 +445,7 @@ fn _rubik(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(alg_length, m)?)?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(cubie_names, m)?)?;
+    m.add_function(wrap_pyfunction!(difficulty, m)?)?;
+    m.add_function(wrap_pyfunction!(random_bandage, m)?)?;
     Ok(())
 }

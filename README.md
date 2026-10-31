@@ -73,6 +73,51 @@ Move notation: `R U F L D B`, slices `M E S`, wide `r`/`Rw`, rotations `x y z`, 
 Costs: about 40 bytes per stored state. The unbandaged cube at depth 6 is 8.2M states (~2 s to
 build). On bandaged cubes the branching factor is lower, so the table reaches much deeper.
 
+## Difficulty study of bandaged cubes
+
+`src/study.rs` measures how hard a bandaged cube is, using the 18 face turns, and
+`src/bin/bandage_study.rs` runs it on N random bandaged cubes plus the plain 3x3x3 as a baseline:
+
+```bash
+cargo run --release --bin bandage_study -- --n 100 --seed 2026 --alg-time 10 --out study
+```
+
+It writes `study/results.csv` and `study/results.json`. A random bandage glues 1 to 12 random
+pairs of touching cubies (corner-edge or edge-center); degenerate puzzles where only one face
+ever turns are skipped. From Python: `rubik.difficulty(bandage="...")` and
+`rubik.random_bandage(bonds, seed)`.
+
+| KPI | how |
+|---|---|
+| `states`: reachable states | exact for every puzzle: `shapes * group_order` (below) |
+| `gods_number`: worst-case optimal solution | exact when the whole puzzle fits in the table (`complete`) |
+| `gods_lower`, `gods_counting` | proven lower bound from samples; counting-argument estimate |
+| `mean_distance`: optimal length of a random state | exact if complete, else sampled (a lower bound when some samples are too deep) |
+| `branching`: legal face turns in a random state | 18 on the 3x3x3 |
+| `edge3`, `corner3`, `edge_flip`, `corner_twist` | shortest algorithm (HTM) that does it and restores the bandage, `possible` (how many distinct such effects exist) and `coverage` (share of the free pieces that can be involved) |
+
+How it is computed:
+
+* **Exact state count** (`src/group.rs`). Legality depends only on where the bandaged cubies
+  are (the *shape*), and every shape is reached by the same number of states, so
+  `#states = #shapes * |G0|`, where G0 is the group of the loops through the solved shape. The
+  shapes are enumerated breadth first. Closing each non-tree edge of the shape graph gives
+  generators of G0, and Schreier-Sims gives its order. On the 3x3x3 this returns
+  43,252,003,274,489,856,000. Membership in G0 also tells exactly which 3-cycles, flips and
+  twists are possible at all.
+* **Distances.** The breadth-first table (10M states by default) holds every state within `d`
+  moves. Small puzzles fit entirely, which gives exact God's number and distance distribution.
+  For larger ones, uniform random states are drawn with a lazy random walk (propose one of the
+  18 turns, stay put if blocked: the proposal is symmetric, so the walk is uniform). A
+  breadth-first ball is grown around each sample until it touches the table. The first contact
+  at ball depth `k` proves the distance is exactly `k + d`.
+* **Algorithms.** On complete puzzles every state is scanned, so lengths are optimal. Otherwise
+  the meet-in-the-middle search is used, and a length is marked `exact` when it lies within the
+  exhaustively searched range (`searched_to`).
+* **Baseline.** The 3x3x3 is too deep for the sampler, so its God's number (20) and mean
+  distance (about 17.7) are the published values (Rokicki, Kociemba, Davidson, Dethridge, 2010).
+  Its state count and algorithm KPIs are computed like the other puzzles.
+
 ## Tests
 
 ```bash

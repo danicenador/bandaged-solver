@@ -65,3 +65,11 @@ def test_specific_pieces_and_extra_depth():
     assert res and all(set(r["pieces"]) == {"UF", "UR", "UB"} for r in res)
     with pytest.raises(ValueError):
         s.find("any")  # 'any' needs pieces
+
+
+def test_difficulty():
+    d = rubik.difficulty("URF+UR | DLF+DBL+DL | DRB+DB+BR | UF+FR+U+F | DFR+DR+D")
+    assert d["complete"] and d["states"] == 792 and d["gods_number"] == 85
+    assert d["states"] == d["shapes"] * d["group_order"]
+    spec = rubik.random_bandage(4, seed=3)
+    assert rubik.Cube(bandage=spec).bandage

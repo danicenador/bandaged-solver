@@ -25,7 +25,7 @@ const NO_PARENT: u32 = u32::MAX;
 
 /// Cheap, well mixing hasher for u128 keys.
 #[derive(Default)]
-struct MixHasher(u64);
+pub(crate) struct MixHasher(u64);
 
 #[inline]
 fn mix64(mut x: u64) -> u64 {
@@ -50,7 +50,8 @@ impl Hasher for MixHasher {
     }
 }
 
-type FastSet = HashSet<u128, BuildHasherDefault<MixHasher>>;
+pub(crate) type FastSet = HashSet<u128, BuildHasherDefault<MixHasher>>;
+pub(crate) type FastMap<V> = HashMap<u128, V, BuildHasherDefault<MixHasher>>;
 
 /// Number of shards of the build's dedup set.
 const SHARDS: usize = 64;
@@ -115,7 +116,7 @@ impl Kind {
     }
 
     /// Cheap pre-filter on the number of differing cubies [corners, edges, centers].
-    fn diff_ok(&self, d: [u8; 3]) -> bool {
+    pub(crate) fn diff_ok(&self, d: [u8; 3]) -> bool {
         match self {
             Kind::Edge3 => d == [0, 3, 0],
             Kind::Corner3 => d == [3, 0, 0],
@@ -382,7 +383,17 @@ impl Solver {
 
     /// Distance from solved if the state is in the table (centre spin is ignored).
     pub fn distance(&self, st: &State) -> Option<usize> {
-        self.find_index(st.pack()).map(|i| self.depth_of_index(i))
+        self.distance_packed(st.pack())
+    }
+
+    /// Same as `distance`, for a packed state.
+    pub fn distance_packed(&self, key: u128) -> Option<usize> {
+        self.find_index(key).map(|i| self.depth_of_index(i))
+    }
+
+    /// Packed states at distance `d` (0..=depth).
+    pub fn layer(&self, d: usize) -> &[u128] {
+        &self.states[self.layer_start[d]..self.layer_start[d + 1]]
     }
 
     /// An optimal sequence from solved to this state, if it is in the table.

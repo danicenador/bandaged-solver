@@ -302,6 +302,11 @@ impl Bandage {
         })
     }
 
+    /// Textual form accepted by `parse`, e.g. `"UFR+UF | DF+D"` (empty for no bandage).
+    pub fn spec(&self) -> String {
+        self.block_names().iter().map(|b| b.join("+")).collect::<Vec<_>>().join(" | ")
+    }
+
     pub fn block_names(&self) -> Vec<Vec<String>> {
         self.blocks
             .iter()

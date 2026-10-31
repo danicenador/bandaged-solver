@@ -4,7 +4,17 @@ The heavy lifting is done in Rust (``rubik._rubik``); this package adds plotting
 convenience helpers for notebooks.
 """
 
-from ._rubik import Cube, Solver, alg_length, analyze, cubie_names, invert_alg, simplify_alg
+from ._rubik import (
+    Cube,
+    Solver,
+    alg_length,
+    analyze,
+    cubie_names,
+    difficulty,
+    invert_alg,
+    random_bandage,
+    simplify_alg,
+)
 from .plot import plot_cube, plot_cubes
 
 CORNERS = cubie_names()[:8]
@@ -17,7 +27,9 @@ __all__ = [
     "alg_length",
     "analyze",
     "cubie_names",
+    "difficulty",
     "invert_alg",
+    "random_bandage",
     "simplify_alg",
     "plot_cube",
     "plot_cubes",
