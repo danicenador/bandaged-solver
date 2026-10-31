@@ -15,7 +15,7 @@ use crate::geometry::{piece_type, PieceType, N_CUBIES};
 use crate::moves::{axis_of_base, base_of, invert, length, qtm_length, simplify, Alg, Move, N_BASES};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
-use std::hash::{BuildHasherDefault, Hasher};
+use std::hash::{BuildHasherDefault, DefaultHasher, Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -51,6 +51,16 @@ impl Hasher for MixHasher {
 }
 
 type FastSet = HashSet<u128, BuildHasherDefault<MixHasher>>;
+
+/// Number of shards of the build's dedup set.
+const SHARDS: usize = 64;
+
+/// Shard of a packed state. Uses a different mix than `MixHasher` so the hashes inside one
+/// shard stay well spread.
+#[inline]
+fn shard_of(key: u128) -> usize {
+    (mix64((key >> 64) as u64 ^ mix64(key as u64 ^ 0x9e37_79b9_7f4a_7c15)) >> 58) as usize
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -272,8 +282,9 @@ impl Solver {
 
     fn build(&mut self, max_depth: usize, max_nodes: usize) {
         let bases = self.bases();
-        let mut seen: FastSet = FastSet::default();
-        seen.insert(self.states[0]);
+        // The dedup set is sharded by key so each shard can be filled by its own thread.
+        let mut seen: Vec<FastSet> = (0..SHARDS).map(|_| FastSet::default()).collect();
+        seen[shard_of(self.states[0])].insert(self.states[0]);
         const BATCH: usize = 1 << 15;
         for d in 1..=max_depth {
             let (start, end) = (self.layer_start[d - 1], self.layer_start[d]);
@@ -281,21 +292,47 @@ impl Solver {
             let mut i = start;
             while i < end && !overflow {
                 let j = (i + BATCH).min(end);
-                let children: Vec<Vec<(u128, u32, u8)>> = (i..j)
+                let children: Vec<(u128, u32, u8)> = (i..j)
                     .into_par_iter()
-                    .map(|n| {
+                    .flat_map_iter(|n| {
                         let st = State::unpack(self.states[n]);
                         let mut succ = Vec::with_capacity(self.moves.len());
                         self.successors(&st, self.last[n], &bases, &mut succ);
-                        succ.into_iter().map(|(s, m)| (s.pack(), n as u32, m)).collect()
+                        succ.into_iter().map(move |(s, m)| (s.pack(), n as u32, m))
                     })
                     .collect();
-                for (key, p, m) in children.into_iter().flatten() {
-                    if seen.insert(key) {
-                        self.states.push(key);
-                        self.parent.push(p);
-                        self.last.push(m);
-                    }
+                // Bucket child indices by shard, keeping their order, so the first occurrence of
+                // a state wins exactly as in a sequential scan (the table stays deterministic).
+                let chunk = children.len().div_ceil(rayon::current_num_threads()).max(1);
+                let buckets: Vec<Vec<Vec<u32>>> = children
+                    .par_chunks(chunk)
+                    .enumerate()
+                    .map(|(c, ch)| {
+                        let mut b = vec![Vec::new(); SHARDS];
+                        for (k, e) in ch.iter().enumerate() {
+                            b[shard_of(e.0)].push((c * chunk + k) as u32);
+                        }
+                        b
+                    })
+                    .collect();
+                let mut fresh: Vec<u32> = seen
+                    .par_iter_mut()
+                    .enumerate()
+                    .flat_map_iter(|(sh, set)| {
+                        let new: Vec<u32> = buckets
+                            .iter()
+                            .flat_map(|b| b[sh].iter().copied())
+                            .filter(|&k| set.insert(children[k as usize].0))
+                            .collect();
+                        new
+                    })
+                    .collect();
+                fresh.par_sort_unstable();
+                for k in fresh {
+                    let (key, p, m) = children[k as usize];
+                    self.states.push(key);
+                    self.parent.push(p);
+                    self.last.push(m);
                 }
                 if self.states.len() > max_nodes {
                     overflow = true;
@@ -519,7 +556,9 @@ impl<'a> KeyIndex<'a> {
 struct Collector<'a> {
     solver: &'a Solver,
     query: &'a Query,
-    found: Mutex<HashMap<Alg, Found>>,
+    /// Verified algorithms, sharded by hash to keep lock contention low.
+    found: Vec<Mutex<HashMap<Alg, Found>>>,
+    n_found: AtomicUsize,
     candidates: AtomicUsize,
     illegal: AtomicUsize,
     stop: AtomicBool,
@@ -531,7 +570,8 @@ impl<'a> Collector<'a> {
         Collector {
             solver,
             query,
-            found: Mutex::new(HashMap::new()),
+            found: (0..SHARDS).map(|_| Mutex::new(HashMap::new())).collect(),
+            n_found: AtomicUsize::new(0),
             candidates: AtomicUsize::new(0),
             illegal: AtomicUsize::new(0),
             stop: AtomicBool::new(false),
@@ -578,17 +618,20 @@ impl<'a> Collector<'a> {
             return;
         }
         let qtm = qtm_length(&alg);
-        let mut found = self.found.lock().unwrap();
+        let mut h = DefaultHasher::new();
+        alg.hash(&mut h);
+        let mut found = self.found[h.finish() as usize % SHARDS].lock().unwrap();
         if !found.contains_key(&alg) {
             found.insert(alg.clone(), Found { alg, effect, length: len, qtm });
-            if found.len() >= self.query.max_candidates {
+            if self.n_found.fetch_add(1, Ordering::Relaxed) + 1 >= self.query.max_candidates {
                 self.stop.store(true, Ordering::Relaxed);
             }
         }
     }
 
     fn finish(self, q: &Query) -> (Vec<Found>, SearchStats) {
-        let found = self.found.into_inner().unwrap();
+        let found: Vec<Found> =
+            self.found.into_iter().flat_map(|m| m.into_inner().unwrap().into_values()).collect();
         let mut stats = SearchStats {
             candidates: self.candidates.into_inner(),
             illegal: self.illegal.into_inner(),
@@ -596,12 +639,15 @@ impl<'a> Collector<'a> {
             truncated: self.stop.into_inner(),
         };
         let mut v: Vec<(String, Found)> =
-            found.into_values().map(|f| (crate::moves::format_alg(&f.alg), f)).collect();
-        v.sort_by(|a, b| (a.1.length, a.1.qtm, &a.0).cmp(&(b.1.length, b.1.qtm, &b.0)));
+            found.into_par_iter().map(|f| (crate::moves::format_alg(&f.alg), f)).collect();
+        // algs are unique, so the key is a total order and an unstable sort is deterministic
+        v.par_sort_unstable_by(|a, b| (a.1.length, a.1.qtm, &a.0).cmp(&(b.1.length, b.1.qtm, &b.0)));
         let mut out: Vec<Found> = v.into_iter().map(|x| x.1).collect();
         if q.unique_effects {
+            let descs: Vec<String> = out.par_iter().map(|f| f.effect.describe()).collect();
             let mut seen = HashSet::new();
-            out.retain(|f| seen.insert(f.effect.describe()));
+            let mut keep = descs.into_iter().map(|d| seen.insert(d));
+            out.retain(|_| keep.next().unwrap());
             stats.matched = out.len();
         }
         out.truncate(q.max_results);
