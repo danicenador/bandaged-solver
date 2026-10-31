@@ -6,6 +6,7 @@
 pub mod cube;
 pub mod geometry;
 pub mod group;
+pub mod human;
 pub mod moves;
 pub mod search;
 pub mod study;

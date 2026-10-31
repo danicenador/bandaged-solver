@@ -133,6 +133,12 @@ impl PyCube {
         self.inner.bandage.block_names()
     }
 
+    /// Moved blocks as cycles, e.g. "(UFL+UF ULB+UB)" (the block at the first home is now at the
+    /// second); "" if every block is home, "?" if the puzzle does not have its home shape.
+    fn blocks_moved(&self) -> String {
+        self.inner.bandage.describe_blocks(&self.inner.state)
+    }
+
     /// Pairs of facelet indices (same face, adjacent) whose cubies are glued together.
     fn bonded_facelet_pairs(&self) -> Vec<(usize, usize)> {
         self.inner.bandage.bonded_facelet_pairs(&self.inner.state)
@@ -222,7 +228,7 @@ impl PySolver {
     ///
     /// Returns a list of dicts with keys alg, length (STM/HTM), qtm, effect, pieces, pure, kind.
     #[pyo3(signature = (kind, pieces = None, pure = false, extra_depth = 0, max_length = None,
-                        max_results = 100, unique_effects = false, time_limit = None))]
+                        max_results = 100, unique_effects = false, time_limit = None, move_blocks = false))]
     #[allow(clippy::too_many_arguments)]
     fn find<'py>(
         &mut self,
@@ -235,6 +241,7 @@ impl PySolver {
         max_results: usize,
         unique_effects: bool,
         time_limit: Option<f64>,
+        move_blocks: bool,
     ) -> PyResult<Vec<Bound<'py, PyDict>>> {
         let kind = Kind::parse(kind).map_err(err)?;
         let pieces = match pieces {
@@ -255,6 +262,7 @@ impl PySolver {
             max_results,
             unique_effects,
             time_limit,
+            move_blocks,
             ..Query::new(kind)
         };
         let solver = &self.inner;
@@ -271,7 +279,41 @@ impl PySolver {
                 d.set_item("pieces", f.effect.affected().iter().map(|&c| NAMES[c]).collect::<Vec<_>>())?;
                 d.set_item("pure", f.effect.is_pure())?;
                 d.set_item("kind", kind.name())?;
+                let mut c = Cube::new(solver.bandage.clone());
+                c.apply(&f.alg).map_err(err)?;
+                d.set_item("blocks", solver.bandage.describe_blocks(&c.state))?;
                 Ok(d)
+            })
+            .collect()
+    }
+
+    /// Every position in the table that has the home shape (blocks possibly exchanged for
+    /// congruent ones), nearest first, with an optimal algorithm. On a puzzle the table holds
+    /// completely, these are all the block-level effects of the puzzle with optimal lengths.
+    ///
+    /// Each dict: alg, length, blocks (block cycles, e.g. "(UFL+UF ULB+UB)"), effect (cubie level),
+    /// free_solved (every unglued piece is home).
+    #[pyo3(signature = (max_results = 1000))]
+    fn home_shape_effects<'py>(&self, py: Python<'py>, max_results: usize) -> PyResult<Vec<Bound<'py, PyDict>>> {
+        let solver = &self.inner;
+        let found = py.detach(|| crate::study::home_shape_states(solver));
+        let bandaged = solver.bandage.bandaged_cubies();
+        found
+            .iter()
+            .take(max_results)
+            .map(|&(d, k)| {
+                let st = crate::cube::State::unpack(k);
+                let alg = solver.path_to(&st).unwrap();
+                let dict = PyDict::new(py);
+                dict.set_item("alg", format_alg(&alg))?;
+                dict.set_item("length", d)?;
+                dict.set_item("blocks", solver.bandage.describe_blocks(&st))?;
+                dict.set_item("effect", st.effect().describe())?;
+                let free_solved = (0..N_CUBIES)
+                    .filter(|&c| bandaged & (1 << c) == 0 && crate::geometry::piece_type(c) != crate::geometry::PieceType::Center)
+                    .all(|c| st.slot(c) == c && st.ori(c) == 0);
+                dict.set_item("free_solved", free_solved)?;
+                Ok(dict)
             })
             .collect()
     }
@@ -426,6 +468,70 @@ fn difficulty<'py>(
     Ok(d)
 }
 
+/// Human difficulty index of a bandaged cube: an estimate, in moves, of a commutator solve
+/// (see `rubik::human`). Divide `total` by the 3x3x3's `total` to get the index.
+///
+/// Returns a dict with shapes, home_positions, nav_mean, nav_max, branching, navigation, load,
+/// align, discovery, penalty, total, and classes: one dict per piece class (name, units,
+/// configs, tool_configs, perm_tools, orient_tools, load, align, discovery, penalty, tools),
+/// each tool with kind, known (a standard algorithm that works here), possible, comm_depth,
+/// commutator, cost. Also transfer: the share of the standard algorithm library usable here. None if there are too many shapes.
+#[pyfunction]
+#[pyo3(signature = (bandage = None, comm_depth = 6, setup = 2.0, discovery_weight = 5.0, samples = 400, seed = 1))]
+fn human_difficulty<'py>(
+    py: Python<'py>,
+    bandage: Option<&Bound<'_, PyAny>>,
+    comm_depth: usize,
+    setup: f64,
+    discovery_weight: f64,
+    samples: usize,
+    seed: u64,
+) -> PyResult<Option<Bound<'py, PyDict>>> {
+    let b = bandage_from(bandage)?;
+    let cfg = crate::human::HumanConfig { comm_depth, setup, discovery_weight, samples, seed, ..Default::default() };
+    let Some(p) = py.detach(|| crate::human::human_profile(&b, &cfg)) else { return Ok(None) };
+    let d = PyDict::new(py);
+    d.set_item("bandage", &p.spec)?;
+    d.set_item("shapes", p.shapes)?;
+    d.set_item("home_positions", p.home_positions)?;
+    d.set_item("nav_mean", p.nav_mean)?;
+    d.set_item("nav_max", p.nav_max)?;
+    d.set_item("branching", p.branching)?;
+    d.set_item("transfer", p.transfer)?;
+    for (k, v) in [("navigation", p.navigation), ("load", p.load), ("align", p.align), ("discovery", p.discovery), ("penalty", p.penalty), ("total", p.total)] {
+        d.set_item(k, v)?;
+    }
+    let mut classes = Vec::new();
+    for c in &p.classes {
+        let cd = PyDict::new(py);
+        cd.set_item("name", &c.name)?;
+        cd.set_item("units", c.units)?;
+        cd.set_item("configs", c.configs)?;
+        cd.set_item("tool_configs", c.tool_configs)?;
+        cd.set_item("perm_tools", c.perm_tools)?;
+        cd.set_item("orient_tools", c.orient_tools)?;
+        cd.set_item("load", c.load)?;
+        cd.set_item("align", c.align)?;
+        cd.set_item("discovery", c.discovery)?;
+        cd.set_item("penalty", c.penalty)?;
+        let mut tools = Vec::new();
+        for t in &c.tools {
+            let td = PyDict::new(py);
+            td.set_item("kind", t.kind.name())?;
+            td.set_item("known", &t.known)?;
+            td.set_item("possible", t.possible)?;
+            td.set_item("comm_depth", t.comm_depth)?;
+            td.set_item("commutator", &t.commutator)?;
+            td.set_item("cost", t.cost)?;
+            tools.push(td);
+        }
+        cd.set_item("tools", tools)?;
+        classes.push(cd);
+    }
+    d.set_item("classes", classes)?;
+    Ok(Some(d))
+}
+
 /// A random bandage made of `bonds` glued pairs of adjacent cubies, as a bandage string.
 #[pyfunction]
 #[pyo3(signature = (bonds, seed = 1))]
@@ -450,5 +556,6 @@ fn _rubik(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(cubie_names, m)?)?;
     m.add_function(wrap_pyfunction!(difficulty, m)?)?;
     m.add_function(wrap_pyfunction!(random_bandage, m)?)?;
+    m.add_function(wrap_pyfunction!(human_difficulty, m)?)?;
     Ok(())
 }

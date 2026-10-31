@@ -23,7 +23,7 @@ pub const N_POINTS: usize = 48;
 /// A permutation of the 48 stickers: `p[x]` is where the sticker that starts at `x` ends up.
 pub type Perm = [u8; N_POINTS];
 
-const IDENTITY: Perm = {
+pub const IDENTITY: Perm = {
     let mut p = [0u8; N_POINTS];
     let mut i = 0;
     while i < N_POINTS {
@@ -129,6 +129,11 @@ impl Chain {
             }
         }
         (g, self.base.len())
+    }
+
+    /// Strong generators of the whole group.
+    pub fn generators(&self) -> &[Perm] {
+        self.gens.first().map_or(&[], |g| g.as_slice())
     }
 
     pub fn contains(&self, g: &Perm) -> bool {

@@ -1,0 +1,1633 @@
+[
+ {
+  "name": "3x3x3",
+  "bandage": "",
+  "shapes": 1,
+  "home_positions": 4.325200327448986e+19,
+  "nav_mean": 0.0,
+  "nav_max": 0,
+  "branching": 18.0,
+  "transfer": 1.0,
+  "navigation": 0.0,
+  "load": 161.4475,
+  "align": 0.4796249331362629,
+  "discovery": 0.0,
+  "penalty": 0.0,
+  "total": 161.92712493313624,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 8,
+    "configs": 88179840.0,
+    "tool_configs": 44089920.0,
+    "perm_tools": 2.5975,
+    "orient_tools": 2.675,
+    "load": 79.475,
+    "align": 0.23981246656813146,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "R U R' D R U' R' D'",
+      "possible": 1008,
+      "comm_depth": 3,
+      "commutator": "[D' R' D, L]",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "R' D' R D R' D' R D U D' R' D R D' R' D R U'",
+      "possible": 56,
+      "comm_depth": 5,
+      "commutator": "[L F' U2 F L', D2]",
+      "cost": 20.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 12,
+    "configs": 980995276800.0,
+    "tool_configs": 490497638400.0,
+    "perm_tools": 4.4375,
+    "orient_tools": 3.0025,
+    "load": 81.9725,
+    "align": 0.23981246656813146,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "M2 U M U2 M' U M2",
+      "possible": 1760,
+      "comm_depth": 3,
+      "commutator": "[L2 D2 L2, F2]",
+      "cost": 9.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "M' U M' U M' U2 M U M U M U2",
+      "possible": 66,
+      "comm_depth": 6,
+      "commutator": "[L2 D F B' L U2, B2]",
+      "cost": 14.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "A",
+  "bandage": "DLF+FL | DF+F | DL+L",
+  "shapes": 300,
+  "home_positions": 170659735142400.0,
+  "nav_mean": 3.7666666666666666,
+  "nav_max": 6,
+  "branching": 10.44,
+  "transfer": 0.6923076923076923,
+  "navigation": 3.7666666666666666,
+  "load": 140.28499999999997,
+  "align": 0.5910078498206519,
+  "discovery": 6.0,
+  "penalty": 0.0,
+  "total": 174.6426745164873,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 7,
+    "configs": 3674160.0,
+    "tool_configs": 1837080.0,
+    "perm_tools": 2.235,
+    "orient_tools": 2.34625,
+    "load": 69.27499999999999,
+    "align": 0.29550392491032595,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[x: R U R' D R U' R' D']",
+      "possible": 630,
+      "comm_depth": 3,
+      "commutator": "[U R U', L]",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "[x: R' D' R D R' D' R D U D' R' D R D' R' D R U']",
+      "possible": 42,
+      "comm_depth": 6,
+      "commutator": "[U R2 U' B' R2 B, L']",
+      "cost": 20.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 9,
+    "configs": 92897280.0,
+    "tool_configs": 46448640.0,
+    "perm_tools": 3.11,
+    "orient_tools": 2.3,
+    "load": 71.00999999999999,
+    "align": 0.29550392491032595,
+    "discovery": 6.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "R U R' U' M' U R U' r'",
+      "possible": 672,
+      "comm_depth": 3,
+      "commutator": "[R2 B2 R2, U2]",
+      "cost": 11.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 36,
+      "comm_depth": 6,
+      "commutator": "[R2 U' F' B L' U2, B2]",
+      "cost": 16.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B",
+  "bandage": "DFR+DRB+DR | DLF+DBL+DL",
+  "shapes": 42,
+  "home_positions": 44590694400.0,
+  "nav_mean": 2.0,
+  "nav_max": 3,
+  "branching": 8.571428571428571,
+  "transfer": 0.3076923076923077,
+  "navigation": 2.0,
+  "load": 66.2425,
+  "align": 2.4471286346033927,
+  "discovery": 0.0,
+  "penalty": 0.0,
+  "total": 70.6896286346034,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 4,
+    "configs": 24.0,
+    "tool_configs": 1.0,
+    "perm_tools": 0.0,
+    "orient_tools": 0.0,
+    "load": 0.0,
+    "align": 1.4792417263804212,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": []
+   },
+   {
+    "name": "free edges",
+    "units": 10,
+    "configs": 1857945600.0,
+    "tool_configs": 928972800.0,
+    "perm_tools": 3.5025,
+    "orient_tools": 2.48,
+    "load": 66.2425,
+    "align": 0.3226289694076572,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "M2 U M U2 M' U M2",
+      "possible": 960,
+      "comm_depth": 5,
+      "commutator": "[U' D F2 U D', R2]",
+      "cost": 9.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "M' U M' U M' U2 M U M U M U2",
+      "possible": 45,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 14.0
+     }
+    ]
+   },
+   {
+    "name": "blocks like DFR+DRB+DR",
+    "units": 2,
+    "configs": 4.0,
+    "tool_configs": 1.0,
+    "perm_tools": 0.0,
+    "orient_tools": 0.0,
+    "load": 0.0,
+    "align": 0.6452579388153143,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": []
+   }
+  ]
+ },
+ {
+  "name": "Glued",
+  "bandage": "UBR+UR | UFL+UF | ULB+UB | DRB+DR | DFR+FR | DLF+FL | DBL+BL | UL+U | BR+R | DF+F | DL+L | DB+D+B",
+  "shapes": 440,
+  "home_positions": 2520.0,
+  "nav_mean": 5.211363636363636,
+  "nav_max": 12,
+  "branching": 4.3090909090909095,
+  "transfer": 0.0,
+  "navigation": 5.211363636363636,
+  "load": 30.695,
+  "align": 0.0,
+  "discovery": 5.0,
+  "penalty": 0.0,
+  "total": 60.906363636363636,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 1,
+    "configs": 1.0,
+    "tool_configs": 1.0,
+    "perm_tools": 0.0,
+    "orient_tools": 0.0,
+    "load": 0.0,
+    "align": 0.0,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": []
+   },
+   {
+    "name": "blocks like UBR+UR",
+    "units": 7,
+    "configs": 2520.0,
+    "tool_configs": 2520.0,
+    "perm_tools": 2.1925,
+    "orient_tools": 0.0,
+    "load": 30.695,
+    "align": 0.0,
+    "discovery": 5.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "block 3-cycle",
+      "known": "",
+      "possible": 70,
+      "comm_depth": 5,
+      "commutator": "[F R U F' L', U]",
+      "cost": 14.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B018",
+  "bandage": "UBR+UB | DBL+DB | FR+F | DLF+DR+DF+DL+D | UR+BR+R+B",
+  "shapes": 94,
+  "home_positions": 288.0,
+  "nav_mean": 6.574468085106383,
+  "nav_max": 13,
+  "branching": 4.0212765957446805,
+  "transfer": 0.0,
+  "navigation": 6.574468085106383,
+  "load": 43.2,
+  "align": 2.4904695054862738,
+  "discovery": 14.0,
+  "penalty": 0.0,
+  "total": 122.26493759059267,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 5,
+    "configs": 36.0,
+    "tool_configs": 9.0,
+    "perm_tools": 0.0,
+    "orient_tools": 1.365,
+    "load": 24.57,
+    "align": 0.9961878021945095,
+    "discovery": 7.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 4,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 4,
+    "configs": 32.0,
+    "tool_configs": 4.0,
+    "perm_tools": 0.0,
+    "orient_tools": 1.035,
+    "load": 18.63,
+    "align": 1.4942817032917641,
+    "discovery": 7.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 2,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "blocks like UBR+UB",
+    "units": 2,
+    "configs": 1.0,
+    "tool_configs": 1.0,
+    "perm_tools": 0.0,
+    "orient_tools": 0.0,
+    "load": 0.0,
+    "align": 0.0,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": []
+   }
+  ]
+ },
+ {
+  "name": "B043",
+  "bandage": "UFL+FL | DF+FR+F | DBL+DRB+DL+DB+D | UL+L",
+  "shapes": 243,
+  "home_positions": 103680.0,
+  "nav_mean": 9.160493827160494,
+  "nav_max": 16,
+  "branching": 4.320987654320987,
+  "transfer": 0.0,
+  "navigation": 9.160493827160494,
+  "load": 70.8075,
+  "align": 1.4208843704122176,
+  "discovery": 21.0,
+  "penalty": 0.0,
+  "total": 186.38887819757272,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 5,
+    "configs": 108.0,
+    "tool_configs": 27.0,
+    "perm_tools": 0.0,
+    "orient_tools": 1.30125,
+    "load": 23.4225,
+    "align": 0.9472562469414784,
+    "discovery": 7.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 12,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 6,
+    "configs": 1920.0,
+    "tool_configs": 960.0,
+    "perm_tools": 1.375,
+    "orient_tools": 1.2575,
+    "load": 47.385000000000005,
+    "align": 0.4736281234707392,
+    "discovery": 14.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 80,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 10,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B011",
+  "bandage": "DFR+DF | DBL+DL+BL | UBR+BR | ULB+UL+U | UR+DR+R",
+  "shapes": 584,
+  "home_positions": 248832.0,
+  "nav_mean": 7.674657534246576,
+  "nav_max": 17,
+  "branching": 4.561643835616438,
+  "transfer": 0.0,
+  "navigation": 7.674657534246576,
+  "load": 75.6225,
+  "align": 1.3701421672200198,
+  "discovery": 28.0,
+  "penalty": 0.0,
+  "total": 224.66729970146662,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 4,
+    "configs": 648.0,
+    "tool_configs": 324.0,
+    "perm_tools": 0.9175,
+    "orient_tools": 1.34125,
+    "load": 40.6575,
+    "align": 0.4567140557400066,
+    "discovery": 14.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 72,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 12,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 5,
+    "configs": 192.0,
+    "tool_configs": 96.0,
+    "perm_tools": 0.945,
+    "orient_tools": 0.9975,
+    "load": 34.965,
+    "align": 0.4567140557400066,
+    "discovery": 14.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 32,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 6,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "blocks like DFR+DF",
+    "units": 2,
+    "configs": 2.0,
+    "tool_configs": 1.0,
+    "perm_tools": 0.0,
+    "orient_tools": 0.0,
+    "load": 0.0,
+    "align": 0.4567140557400066,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": []
+   }
+  ]
+ },
+ {
+  "name": "B008",
+  "bandage": "UBR+UR | UFL+DLF+FL | FR+R | DB+D | DBL+BL+L",
+  "shapes": 3440,
+  "home_positions": 2488320.0,
+  "nav_mean": 8.149127906976744,
+  "nav_max": 14,
+  "branching": 5.445348837209302,
+  "transfer": 0.0,
+  "navigation": 8.149127906976744,
+  "load": 81.9225,
+  "align": 1.63597544482357,
+  "discovery": 21.0,
+  "penalty": 0.0,
+  "total": 196.70760335180032,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 4,
+    "configs": 108.0,
+    "tool_configs": 27.0,
+    "perm_tools": 0.0,
+    "orient_tools": 1.30125,
+    "load": 23.4225,
+    "align": 0.817987722411785,
+    "discovery": 7.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 12,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 7,
+    "configs": 46080.0,
+    "tool_configs": 11520.0,
+    "perm_tools": 1.7375,
+    "orient_tools": 1.5125,
+    "load": 58.5,
+    "align": 0.817987722411785,
+    "discovery": 14.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 160,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 15,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B066",
+  "bandage": "DFR+DR | UF+U | DBL+UB+DB+BL+B",
+  "shapes": 184,
+  "home_positions": 261273600.0,
+  "nav_mean": 4.538043478260869,
+  "nav_max": 7,
+  "branching": 6.358695652173913,
+  "transfer": 0.0,
+  "navigation": 4.538043478260869,
+  "load": 102.98250000000002,
+  "align": 1.9941793973374375,
+  "discovery": 21.0,
+  "penalty": 0.0,
+  "total": 214.51472287559832,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 6,
+    "configs": 1620.0,
+    "tool_configs": 81.0,
+    "perm_tools": 0.0,
+    "orient_tools": 1.70625,
+    "load": 30.712500000000002,
+    "align": 1.6194694497804245,
+    "discovery": 7.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 20,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 7,
+    "configs": 322560.0,
+    "tool_configs": 161280.0,
+    "perm_tools": 2.2225,
+    "orient_tools": 1.7925,
+    "load": 72.27000000000001,
+    "align": 0.374709947557013,
+    "discovery": 14.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 280,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 21,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B028",
+  "bandage": "UBR+UR | DLF+DF | URF+DFR+FR | UL+U | UF+F",
+  "shapes": 12102,
+  "home_positions": 69672960.0,
+  "nav_mean": 9.007436787307883,
+  "nav_max": 13,
+  "branching": 6.238968765493307,
+  "transfer": 0.0,
+  "navigation": 9.007436787307883,
+  "load": 95.69250000000001,
+  "align": 2.2716021526530863,
+  "discovery": 21.0,
+  "penalty": 0.0,
+  "total": 211.97153893996096,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 4,
+    "configs": 216.0,
+    "tool_configs": 27.0,
+    "perm_tools": 0.0,
+    "orient_tools": 1.30125,
+    "load": 23.4225,
+    "align": 1.1358010763265431,
+    "discovery": 7.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 12,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 7,
+    "configs": 645120.0,
+    "tool_configs": 161280.0,
+    "perm_tools": 2.2225,
+    "orient_tools": 1.7925,
+    "load": 72.27000000000001,
+    "align": 0.7572007175510289,
+    "discovery": 14.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 280,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 21,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "blocks like UBR+UR",
+    "units": 2,
+    "configs": 2.0,
+    "tool_configs": 1.0,
+    "perm_tools": 0.0,
+    "orient_tools": 0.0,
+    "load": 0.0,
+    "align": 0.37860035877551446,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": []
+   }
+  ]
+ },
+ {
+  "name": "B007",
+  "bandage": "UL+U | DR+R | DLF+DF+F+D",
+  "shapes": 15,
+  "home_positions": 592568524800.0,
+  "nav_mean": 1.4666666666666666,
+  "nav_max": 2,
+  "branching": 6.4,
+  "transfer": 0.0,
+  "navigation": 1.4666666666666666,
+  "load": 132.4325,
+  "align": 0.7468059375783942,
+  "discovery": 23.0,
+  "penalty": 0.0,
+  "total": 249.64597260424506,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 7,
+    "configs": 3674160.0,
+    "tool_configs": 1837080.0,
+    "perm_tools": 2.235,
+    "orient_tools": 2.34625,
+    "load": 69.05250000000001,
+    "align": 0.3734029687891971,
+    "discovery": 11.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 630,
+      "comm_depth": 4,
+      "commutator": "[U' R U R', B]",
+      "cost": 12.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 42,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 9,
+    "configs": 322560.0,
+    "tool_configs": 161280.0,
+    "perm_tools": 2.2225,
+    "orient_tools": 1.7925,
+    "load": 63.38,
+    "align": 0.3734029687891971,
+    "discovery": 12.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 280,
+      "comm_depth": 5,
+      "commutator": "[U2 B' U B U, B2]",
+      "cost": 14.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 21,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B001",
+  "bandage": "URF+UBR+UR | DFR+DF | UB+B",
+  "shapes": 720,
+  "home_positions": 150493593600.0,
+  "nav_mean": 5.115277777777778,
+  "nav_max": 8,
+  "branching": 8.466666666666667,
+  "transfer": 0.0,
+  "navigation": 5.115277777777778,
+  "load": 106.02,
+  "align": 2.0513791343211647,
+  "discovery": 17.0,
+  "penalty": 0.0,
+  "total": 198.18665691209895,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 5,
+    "configs": 1620.0,
+    "tool_configs": 81.0,
+    "perm_tools": 0.0,
+    "orient_tools": 1.70625,
+    "load": 27.3,
+    "align": 1.4024065096625116,
+    "discovery": 6.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 20,
+      "comm_depth": 6,
+      "commutator": "[D R' F D2 F' D', L]",
+      "cost": 16.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 9,
+    "configs": 185794560.0,
+    "tool_configs": 46448640.0,
+    "perm_tools": 3.11,
+    "orient_tools": 2.3,
+    "load": 78.72,
+    "align": 0.6489726246586529,
+    "discovery": 11.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 672,
+      "comm_depth": 4,
+      "commutator": "[D R' L B', L]",
+      "cost": 12.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 36,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B024",
+  "bandage": "DFR+DF | UFL+FL | UR+U | DL+L | BR+B",
+  "shapes": 6480,
+  "home_positions": 56435097600.0,
+  "nav_mean": 5.95354938271605,
+  "nav_max": 9,
+  "branching": 7.355555555555555,
+  "transfer": 0.0,
+  "navigation": 5.95354938271605,
+  "load": 125.87,
+  "align": 1.042088455414566,
+  "discovery": 24.0,
+  "penalty": 0.0,
+  "total": 252.86563783813062,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 6,
+    "configs": 174960.0,
+    "tool_configs": 87480.0,
+    "perm_tools": 1.77,
+    "orient_tools": 2.0225,
+    "load": 53.6,
+    "align": 0.347362818471522,
+    "discovery": 10.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 360,
+      "comm_depth": 4,
+      "commutator": "[F U' F' U, B2]",
+      "cost": 12.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 30,
+      "comm_depth": 6,
+      "commutator": "[L D F2 D' F L', B]",
+      "cost": 16.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 7,
+    "configs": 322560.0,
+    "tool_configs": 161280.0,
+    "perm_tools": 2.2225,
+    "orient_tools": 1.7925,
+    "load": 72.27000000000001,
+    "align": 0.347362818471522,
+    "discovery": 14.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 280,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 21,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "blocks like DFR+DF",
+    "units": 2,
+    "configs": 2.0,
+    "tool_configs": 1.0,
+    "perm_tools": 0.0,
+    "orient_tools": 0.0,
+    "load": 0.0,
+    "align": 0.347362818471522,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": []
+   }
+  ]
+ },
+ {
+  "name": "B012",
+  "bandage": "DFR+DF | DBL+DL | FL+BL+L",
+  "shapes": 328,
+  "home_positions": 1805923123200.0,
+  "nav_mean": 4.067073170731708,
+  "nav_max": 6,
+  "branching": 8.670731707317072,
+  "transfer": 0.15384615384615385,
+  "navigation": 4.067073170731708,
+  "load": 124.29,
+  "align": 0.962725284274675,
+  "discovery": 17.0,
+  "penalty": 0.0,
+  "total": 214.3197984550064,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 6,
+    "configs": 174960.0,
+    "tool_configs": 87480.0,
+    "perm_tools": 1.77,
+    "orient_tools": 2.0225,
+    "load": 54.105000000000004,
+    "align": 0.32090842809155834,
+    "discovery": 10.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 360,
+      "comm_depth": 3,
+      "commutator": "[D R2 D', L2]",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 30,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 8,
+    "configs": 5160960.0,
+    "tool_configs": 2580480.0,
+    "perm_tools": 2.64,
+    "orient_tools": 1.9925,
+    "load": 70.185,
+    "align": 0.32090842809155834,
+    "discovery": 7.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[z': R U' R U R U R U' R' U' R2]",
+      "possible": 448,
+      "comm_depth": 6,
+      "commutator": "[D2 R2 U' R U R, U2]",
+      "cost": 13.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 28,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 18.0
+     }
+    ]
+   },
+   {
+    "name": "blocks like DFR+DF",
+    "units": 2,
+    "configs": 2.0,
+    "tool_configs": 1.0,
+    "perm_tools": 0.0,
+    "orient_tools": 0.0,
+    "load": 0.0,
+    "align": 0.32090842809155834,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": []
+   }
+  ]
+ },
+ {
+  "name": "B032",
+  "bandage": "DFR+DR | DRB+BR | BL+L",
+  "shapes": 800,
+  "home_positions": 16253308108800.0,
+  "nav_mean": 4.3125,
+  "nav_max": 7,
+  "branching": 10.47,
+  "transfer": 0.3076923076923077,
+  "navigation": 4.3125,
+  "load": 110.25,
+  "align": 0.8854286240781218,
+  "discovery": 9.0,
+  "penalty": 0.0,
+  "total": 160.44792862407812,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 6,
+    "configs": 174960.0,
+    "tool_configs": 87480.0,
+    "perm_tools": 1.77,
+    "orient_tools": 2.0225,
+    "load": 50.06,
+    "align": 0.2951428746927073,
+    "discovery": 9.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "",
+      "possible": 360,
+      "comm_depth": 3,
+      "commutator": "[U L2 U', R']",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 30,
+      "comm_depth": 6,
+      "commutator": "[R2 F' R' F D2 R', U]",
+      "cost": 16.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 9,
+    "configs": 92897280.0,
+    "tool_configs": 46448640.0,
+    "perm_tools": 3.11,
+    "orient_tools": 2.3,
+    "load": 60.19,
+    "align": 0.2951428746927073,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "M2 U M U2 M' U M2",
+      "possible": 672,
+      "comm_depth": 3,
+      "commutator": "[R2 F2 R2, U2]",
+      "cost": 9.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "M' U M' U M' U2 M U M U M U2",
+      "possible": 36,
+      "comm_depth": 6,
+      "commutator": "[R2 F' U D' L' F2, U2]",
+      "cost": 14.0
+     }
+    ]
+   },
+   {
+    "name": "blocks like DFR+DR",
+    "units": 2,
+    "configs": 2.0,
+    "tool_configs": 1.0,
+    "perm_tools": 0.0,
+    "orient_tools": 0.0,
+    "load": 0.0,
+    "align": 0.2951428746927073,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": []
+   }
+  ]
+ },
+ {
+  "name": "B050",
+  "bandage": "URF+UR | UL+L | BL+B",
+  "shapes": 300,
+  "home_positions": 170659735142400.0,
+  "nav_mean": 3.723333333333333,
+  "nav_max": 6,
+  "branching": 10.44,
+  "transfer": 0.46153846153846156,
+  "navigation": 3.723333333333333,
+  "load": 132.42749999999998,
+  "align": 0.5910078498206519,
+  "discovery": 11.0,
+  "penalty": 0.0,
+  "total": 191.74184118315395,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 7,
+    "configs": 3674160.0,
+    "tool_configs": 1837080.0,
+    "perm_tools": 2.235,
+    "orient_tools": 2.34625,
+    "load": 55.19749999999999,
+    "align": 0.29550392491032595,
+    "discovery": 5.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[x: R U R' D R U' R' D']",
+      "possible": 630,
+      "comm_depth": 3,
+      "commutator": "[R' F R, B]",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "",
+      "possible": 42,
+      "comm_depth": 5,
+      "commutator": "[B L' U2 L B', D2]",
+      "cost": 14.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 9,
+    "configs": 92897280.0,
+    "tool_configs": 46448640.0,
+    "perm_tools": 3.11,
+    "orient_tools": 2.3,
+    "load": 77.22999999999999,
+    "align": 0.29550392491032595,
+    "discovery": 6.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[x: R U' R U R U R U' R' U' R2]",
+      "possible": 672,
+      "comm_depth": 3,
+      "commutator": "[R2 F2 R2, D2]",
+      "cost": 13.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "",
+      "possible": 36,
+      "comm_depth": 6,
+      "commutator": "[D2 B' R L' D' F2, R2]",
+      "cost": 16.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B025",
+  "bandage": "UR+DR+R | FL+L",
+  "shapes": 8,
+  "home_positions": 8191667286835200.0,
+  "nav_mean": 1.25,
+  "nav_max": 2,
+  "branching": 10.5,
+  "transfer": 0.7692307692307693,
+  "navigation": 1.25,
+  "load": 139.665,
+  "align": 0.5895674698866279,
+  "discovery": 0.0,
+  "penalty": 0.0,
+  "total": 141.5045674698866,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 8,
+    "configs": 88179840.0,
+    "tool_configs": 44089920.0,
+    "perm_tools": 2.5975,
+    "orient_tools": 2.675,
+    "load": 79.475,
+    "align": 0.29478373494331395,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[x y2: R U R' D R U' R' D']",
+      "possible": 1008,
+      "comm_depth": 3,
+      "commutator": "[B L B', R2]",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "[z' y: R' D' R D R' D' R D U2 D' R' D R D' R' D R U2]",
+      "possible": 56,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 20.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 9,
+    "configs": 92897280.0,
+    "tool_configs": 46448640.0,
+    "perm_tools": 3.11,
+    "orient_tools": 2.3,
+    "load": 60.19,
+    "align": 0.29478373494331395,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[x': M2 U M U2 M' U M2]",
+      "possible": 672,
+      "comm_depth": 4,
+      "commutator": "[B R L' D', R2]",
+      "cost": 9.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "[x': M' U M' U M' U2 M U M U M U2]",
+      "possible": 36,
+      "comm_depth": null,
+      "commutator": "",
+      "cost": 14.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B010",
+  "bandage": "UBR+UR | BL+L",
+  "shapes": 88,
+  "home_positions": 3413194702848000.0,
+  "nav_mean": 2.590909090909091,
+  "nav_max": 4,
+  "branching": 12.545454545454545,
+  "transfer": 1.0,
+  "navigation": 2.590909090909091,
+  "load": 135.51749999999998,
+  "align": 0.5480814242640518,
+  "discovery": 0.0,
+  "penalty": 0.0,
+  "total": 138.65649051517312,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 7,
+    "configs": 3674160.0,
+    "tool_configs": 1837080.0,
+    "perm_tools": 2.235,
+    "orient_tools": 2.34625,
+    "load": 69.27499999999999,
+    "align": 0.2740407121320259,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "R U R' D R U' R' D'",
+      "possible": 630,
+      "comm_depth": 3,
+      "commutator": "[F L F', R]",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "[y': R' D' R D R' D' R D U D' R' D R D' R' D R U']",
+      "possible": 42,
+      "comm_depth": 5,
+      "commutator": "[R' F U2 F' R, D2]",
+      "cost": 20.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 10,
+    "configs": 1857945600.0,
+    "tool_configs": 928972800.0,
+    "perm_tools": 3.5025,
+    "orient_tools": 2.48,
+    "load": 66.2425,
+    "align": 0.2740407121320259,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[x: M2 U M U2 M' U M2]",
+      "possible": 960,
+      "comm_depth": 3,
+      "commutator": "[L2 U2 L2, F2]",
+      "cost": 9.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "[x: M' U M' U M' U2 M U M U M U2]",
+      "possible": 45,
+      "comm_depth": 6,
+      "commutator": "[D2 F R' L D B2, R2]",
+      "cost": 14.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B020",
+  "bandage": "URF+UF",
+  "shapes": 24,
+  "home_positions": 7.5090283462656e+16,
+  "nav_mean": 1.8333333333333333,
+  "nav_max": 3,
+  "branching": 15.0,
+  "transfer": 1.0,
+  "navigation": 1.8333333333333333,
+  "load": 143.7375,
+  "align": 0.511916049619631,
+  "discovery": 0.0,
+  "penalty": 0.0,
+  "total": 146.08274938295298,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 7,
+    "configs": 3674160.0,
+    "tool_configs": 1837080.0,
+    "perm_tools": 2.235,
+    "orient_tools": 2.34625,
+    "load": 69.27499999999999,
+    "align": 0.2559580248098155,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[y: R U R' D R U' R' D']",
+      "possible": 630,
+      "comm_depth": 3,
+      "commutator": "[L U L', D]",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "[y: R' D' R D R' D' R D U D' R' D R D' R' D R U']",
+      "possible": 42,
+      "comm_depth": 5,
+      "commutator": "[F R' U2 R F', D2]",
+      "cost": 20.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 11,
+    "configs": 40874803200.0,
+    "tool_configs": 20437401600.0,
+    "perm_tools": 4.0075,
+    "orient_tools": 2.7425,
+    "load": 74.4625,
+    "align": 0.2559580248098155,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[x2 y: M2 U M U2 M' U M2]",
+      "possible": 1320,
+      "comm_depth": 3,
+      "commutator": "[D2 L2 D2, F2]",
+      "cost": 9.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "[x2 y: M' U M' U M' U2 M U M U M U2]",
+      "possible": 55,
+      "comm_depth": 6,
+      "commutator": "[D2 L F B' U L2, B2]",
+      "cost": 14.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B015",
+  "bandage": "DL+D",
+  "shapes": 4,
+  "home_positions": 1.802166803103744e+18,
+  "nav_mean": 0.75,
+  "nav_max": 1,
+  "branching": 15.0,
+  "transfer": 1.0,
+  "navigation": 0.75,
+  "load": 153.9375,
+  "align": 0.511916049619631,
+  "discovery": 0.0,
+  "penalty": 0.0,
+  "total": 155.19941604961963,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 8,
+    "configs": 88179840.0,
+    "tool_configs": 44089920.0,
+    "perm_tools": 2.5975,
+    "orient_tools": 2.675,
+    "load": 79.475,
+    "align": 0.2559580248098155,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "R U R' D R U' R' D'",
+      "possible": 1008,
+      "comm_depth": 3,
+      "commutator": "[R B2 R', F]",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "R' D' R D R' D' R D U D' R' D R D' R' D R U'",
+      "possible": 56,
+      "comm_depth": 5,
+      "commutator": "[D' L F2 L' D, B2]",
+      "cost": 20.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 11,
+    "configs": 40874803200.0,
+    "tool_configs": 20437401600.0,
+    "perm_tools": 4.0075,
+    "orient_tools": 2.7425,
+    "load": 74.4625,
+    "align": 0.2559580248098155,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[x y: M2 U M U2 M' U M2]",
+      "possible": 1320,
+      "comm_depth": 3,
+      "commutator": "[D2 L2 D2, F2]",
+      "cost": 9.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "[x y: M' U M' U M' U2 M U M U M U2]",
+      "possible": 55,
+      "comm_depth": 6,
+      "commutator": "[D2 L F B' U L2, B2]",
+      "cost": 14.0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "B058",
+  "bandage": "DL+L",
+  "shapes": 4,
+  "home_positions": 1.802166803103744e+18,
+  "nav_mean": 0.75,
+  "nav_max": 1,
+  "branching": 15.0,
+  "transfer": 1.0,
+  "navigation": 0.75,
+  "load": 153.9375,
+  "align": 0.511916049619631,
+  "discovery": 0.0,
+  "penalty": 0.0,
+  "total": 155.19941604961963,
+  "classes": [
+   {
+    "name": "free corners",
+    "units": 8,
+    "configs": 88179840.0,
+    "tool_configs": 44089920.0,
+    "perm_tools": 2.5975,
+    "orient_tools": 2.675,
+    "load": 79.475,
+    "align": 0.2559580248098155,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "[x: R U R' D R U' R' D']",
+      "possible": 1008,
+      "comm_depth": 3,
+      "commutator": "[L D' L', U]",
+      "cost": 10.0
+     },
+     {
+      "kind": "2-twist",
+      "known": "[x: R' D' R D R' D' R D U D' R' D R D' R' D R U']",
+      "possible": 56,
+      "comm_depth": 5,
+      "commutator": "[L D' F2 D L', B2]",
+      "cost": 20.0
+     }
+    ]
+   },
+   {
+    "name": "free edges",
+    "units": 11,
+    "configs": 40874803200.0,
+    "tool_configs": 20437401600.0,
+    "perm_tools": 4.0075,
+    "orient_tools": 2.7425,
+    "load": 74.4625,
+    "align": 0.2559580248098155,
+    "discovery": 0.0,
+    "penalty": 0.0,
+    "tools": [
+     {
+      "kind": "3-cycle",
+      "known": "M2 U M U2 M' U M2",
+      "possible": 1320,
+      "comm_depth": 3,
+      "commutator": "[U2 F2 U2, R2]",
+      "cost": 9.0
+     },
+     {
+      "kind": "2-flip",
+      "known": "M' U M' U M' U2 M U M U M U2",
+      "possible": 55,
+      "comm_depth": 6,
+      "commutator": "[U2 F R' L D F2, R2]",
+      "cost": 14.0
+     }
+    ]
+   }
+  ]
+ }
+]

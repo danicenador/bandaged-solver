@@ -73,3 +73,12 @@ def test_difficulty():
     assert d["states"] == d["shapes"] * d["group_order"]
     spec = rubik.random_bandage(4, seed=3)
     assert rubik.Cube(bandage=spec).bandage
+
+
+def test_human_difficulty():
+    a = rubik.human_difficulty("F + FD | FL + FLD | L + LD")
+    b = rubik.human_difficulty("LDB + LD + LDF | RDB + RD + RDF")
+    assert a["total"] > b["total"]
+    flip = lambda d: next(t for c in d["classes"] if c["name"] == "free edges" for t in c["tools"] if t["kind"] == "2-flip")
+    assert flip(a)["known"] == "" and flip(a)["comm_depth"] == 6   # A: no standard flip works, must be found
+    assert flip(b)["known"] != ""                                  # B: a standard M-slice flip works

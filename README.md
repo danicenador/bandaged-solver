@@ -46,7 +46,15 @@ rubik.to_dataframe(s.find("corner3"))
 | `any`          | anything confined to `pieces=[...]`                           |
 
 Other options of `find`: `pieces`, `pure`, `extra_depth`, `max_length`, `max_results`,
-`unique_effects`, `time_limit`. Effects are written as cycles `(UF UR UB)` (the piece at UF goes
+`unique_effects`, `time_limit`, `move_blocks`.
+
+**Moving glued blocks.** By default every glued cubie must end where it started. With
+`move_blocks=True` (use `kind="any"` and list the blocks' cubies in `pieces`), a block may end on the
+home of a congruent block as long as the puzzle gets its shape back, so the search finds block
+swaps and block 3-cycles. Each result's `blocks` field reads like `(UBR+UR UFL+UF ULB+UB)`.
+`Solver.home_shape_effects()` lists every home-shape position in the table with an optimal
+algorithm (all block effects, when the table holds the whole puzzle), and `Cube.blocks_moved()`
+describes a position. See `notebooks/glued_blocks.ipynb`. Effects are written as cycles `(UF UR UB)` (the piece at UF goes
 to UR...), `*` marks a flipped edge, `+`/`-` a corner twisted clockwise/counter-clockwise.
 
 Move notation: `R U F L D B`, slices `M E S`, wide `r`/`Rw`, rotations `x y z`, suffixes `2` and
@@ -117,6 +125,15 @@ How it is computed:
 * **Baseline.** The 3x3x3 is too deep for the sampler, so its God's number (20) and mean
   distance (about 17.7) are the published values (Rokicki, Kociemba, Davidson, Dethridge, 2010).
   Its state count and algorithm KPIs are computed like the other puzzles.
+
+### Human difficulty index
+
+`src/human.rs` (`rubik.human_difficulty(bandage)`) estimates the moves of a *commutator solve*
+rather than an optimal one: navigation back to the home shape, plus, for every class of pieces
+(free corners, free edges, families of congruent blocks), the tool applications a random position
+needs times their cost, plus a discovery cost (×5) for every tool that no standard 3x3x3 algorithm
+provides in any grip, measured as |X| of the shortest commutator `[X, Y]`. The index is the total
+divided by the 3x3x3's. `notebooks/human_index.ipynb` applies it to 20 puzzles.
 
 ## Tests
 

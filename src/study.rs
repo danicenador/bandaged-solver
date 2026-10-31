@@ -476,6 +476,19 @@ pub fn profile(bandage: &Bandage, cfg: &StudyConfig) -> Profile {
     p
 }
 
+/// Every state of the table (other than solved) with the home shape, possibly with blocks
+/// exchanged, as (distance, packed state), nearest first. On a complete table these are all the
+/// block-level effects of the puzzle, each with its optimal length.
+pub fn home_shape_states(solver: &Solver) -> Vec<(usize, u128)> {
+    let mut v: Vec<(usize, u128)> = (1..=solver.depth)
+        .into_par_iter()
+        .flat_map(|d| solver.layer(d).par_iter().map(move |&k| (d, k)))
+        .filter(|&(_, k)| solver.bandage.shape_at_home(&State::unpack(k)))
+        .collect();
+    v.par_sort_unstable();
+    v
+}
+
 /// Literature values for the unbandaged 3x3x3 in HTM (Rokicki, Kociemba, Davidson, Dethridge,
 /// 2010): 43,252,003,274,489,856,000 states, God's number 20, mean optimal distance about 17.7.
 pub const CUBE333_STATES: f64 = 43_252_003_274_489_856_000.0;

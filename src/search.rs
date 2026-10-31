@@ -63,7 +63,7 @@ fn shard_of(key: u128) -> usize {
     (mix64((key >> 64) as u64 ^ mix64(key as u64 ^ 0x9e37_79b9_7f4a_7c15)) >> 58) as usize
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Kind {
     /// 3-cycle of edges, nothing else affected.
     Edge3,
@@ -178,6 +178,9 @@ pub struct Query {
     pub max_candidates: usize,
     /// Wall-clock budget in seconds for the streamed extension.
     pub time_limit: Option<f64>,
+    /// Let bandaged blocks in `pieces` move: an algorithm must bring back the home shape, but a
+    /// block may end on the home of a congruent block (block swaps and cycles).
+    pub move_blocks: bool,
 }
 
 impl Query {
@@ -192,6 +195,7 @@ impl Query {
             unique_effects: false,
             max_candidates: 2_000_000,
             time_limit: None,
+            move_blocks: false,
         }
     }
 }
@@ -415,8 +419,10 @@ impl Solver {
         if q.kind == Kind::Any && q.pieces.is_none() {
             return Err("kind 'any' needs an explicit list of pieces".into());
         }
-        // Bandaged cubies are pinned: algorithms must restore the bandage (see Collector::offer).
-        let free_mask = q.pieces.unwrap_or(u32::MAX) & !self.bandage.bandaged_cubies();
+        // Bandaged cubies are pinned (algorithms must restore the bandage, see Collector::offer)
+        // unless blocks may move.
+        let pinned = if q.move_blocks { 0 } else { self.bandage.bandaged_cubies() };
+        let free_mask = q.pieces.unwrap_or(u32::MAX) & !pinned;
         let mut parts = [KeyPart::Full; N_CUBIES];
         for (c, p) in parts.iter_mut().enumerate() {
             let free = free_mask & (1 << c) != 0;
@@ -616,7 +622,12 @@ impl<'a> Collector<'a> {
             self.illegal.fetch_add(1, Ordering::Relaxed);
             return;
         }
-        if !cube.bandage_restored() {
+        let shape_ok = if self.query.move_blocks {
+            cube.bandage.shape_at_home(&cube.state)
+        } else {
+            cube.bandage_restored()
+        };
+        if !shape_ok {
             return;
         }
         let effect = cube.state.effect();
@@ -712,6 +723,28 @@ mod tests {
         assert!(s.search(&q).unwrap().0.is_empty());
         let (found, _) = s.search(&Query { extra_depth: 2, ..q }).unwrap();
         assert_eq!(found[0].length, 8);
+    }
+
+    /// Blocks may be exchanged for congruent ones: the 7 corner-edge blocks of this puzzle can be
+    /// 3-cycled in 9 moves (the shortest, found by enumerating every home-shape position).
+    #[test]
+    fn block_3cycle() {
+        let spec = "UBR+UR | UFL+UF | ULB+UB | UL+U | DRB+DR | DFR+FR | DLF+FL | DBL+BL | BR+R | DF+F | DL+L | DB+D+B";
+        let b = Bandage::parse(spec).unwrap();
+        let s = Solver::new(b.clone(), parse_moveset("htm").unwrap(), 5, 10_000_000);
+        let q = Query {
+            pieces: Some(mask(&["UBR", "UR", "UFL", "UF", "ULB", "UB"])),
+            move_blocks: true,
+            ..Query::new(Kind::Any)
+        };
+        let (found, _) = s.search(&q).unwrap();
+        assert_eq!(found[0].length, 9);
+        let mut c = Cube::new(b.clone());
+        c.apply(&found[0].alg).unwrap();
+        assert!(!c.bandage_restored() && b.shape_at_home(&c.state));
+        assert_eq!(b.describe_blocks(&c.state).matches('+').count(), 3, "{}", b.describe_blocks(&c.state));
+        // without move_blocks every block is pinned and nothing exists
+        assert!(s.search(&Query { move_blocks: false, ..q }).unwrap().0.is_empty());
     }
 
     #[test]

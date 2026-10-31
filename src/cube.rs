@@ -302,6 +302,52 @@ impl Bandage {
         })
     }
 
+    /// Slots occupied by the cubies of block `blk` in state `s`.
+    fn block_slots(&self, s: &State, blk: u32) -> u32 {
+        (0..N_CUBIES).filter(|&c| blk & (1 << c) != 0).fold(0, |m, c| m | 1 << s.slot(c))
+    }
+
+    /// Block permutation of `s`: `perm[i] = j` when block i sits on the home slots of block j
+    /// (a block that fills another block's slots is congruent to it). None if some block is
+    /// not on any block's home, i.e. the puzzle has a different shape.
+    pub fn block_permutation(&self, s: &State) -> Option<Vec<usize>> {
+        self.blocks
+            .iter()
+            .map(|&b| {
+                let at = self.block_slots(s, b);
+                self.blocks.iter().position(|&h| h == at)
+            })
+            .collect()
+    }
+
+    /// The puzzle has its home shape, possibly with blocks exchanged for congruent ones.
+    pub fn shape_at_home(&self, s: &State) -> bool {
+        self.block_permutation(s).is_some()
+    }
+
+    /// Cycles of moved blocks, e.g. `(UFL+UF ULB+UB)`: the block at the first home moves to the
+    /// second. Empty if no block moved, `"?"` if the shape is not the home shape.
+    pub fn describe_blocks(&self, s: &State) -> String {
+        let Some(perm) = self.block_permutation(s) else { return "?".into() };
+        let names = self.block_names();
+        let mut seen = vec![false; perm.len()];
+        let mut out = Vec::new();
+        for start in 0..perm.len() {
+            if seen[start] || perm[start] == start {
+                continue;
+            }
+            let mut cyc = Vec::new();
+            let mut i = start;
+            while !seen[i] {
+                seen[i] = true;
+                cyc.push(names[i].join("+"));
+                i = perm[i];
+            }
+            out.push(format!("({})", cyc.join(" ")));
+        }
+        out.join(" ")
+    }
+
     /// Textual form accepted by `parse`, e.g. `"UFR+UF | DF+D"` (empty for no bandage).
     pub fn spec(&self) -> String {
         self.block_names().iter().map(|b| b.join("+")).collect::<Vec<_>>().join(" | ")
