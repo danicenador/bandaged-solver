@@ -1,0 +1,132 @@
+[
+ {
+  "bandage": "DLF+FL | DF+F | DL+L",
+  "states": 5.119792054272e+16,
+  "states_exact": true,
+  "shapes": 300,
+  "group_order": 170659735142400,
+  "complete": false,
+  "gods_number": null,
+  "gods_lower": 15,
+  "gods_counting": 19,
+  "mean_distance": 14.271428571428572,
+  "mean_distance_exact": false,
+  "branching": 10.446428571428571,
+  "legal_at_solved": 15,
+  "free_corners": 7,
+  "free_edges": 9,
+  "layer_sizes": [
+   1,
+   15,
+   144,
+   1254,
+   10483,
+   84761,
+   667064,
+   5159551
+  ],
+  "antipode": "",
+  "edge3": {
+   "min_len": 6,
+   "exact": true,
+   "searched_to": 14,
+   "possible": 672,
+   "coverage": 1.0,
+   "example": "B U2 F B' R2 F'"
+  },
+  "corner3": {
+   "min_len": 8,
+   "exact": true,
+   "searched_to": 14,
+   "possible": 630,
+   "coverage": 1.0,
+   "example": "B L F' L' B' L F L'"
+  },
+  "edge_flip": {
+   "min_len": 13,
+   "exact": true,
+   "searched_to": 16,
+   "possible": 36,
+   "coverage": 1.0,
+   "example": "B L F' L' B' U2 F U F U' F2 U2 F"
+  },
+  "corner_twist": {
+   "min_len": 13,
+   "exact": true,
+   "searched_to": 16,
+   "possible": 42,
+   "coverage": 1.0,
+   "example": "B L F' L2 B D2 B' D2 L B' L2 F L2"
+  },
+  "seconds": 247.2625103,
+  "name": "A",
+  "input": "F + FD | FL + FLD | L + LD"
+ },
+ {
+  "bandage": "DFR+DRB+DR | DLF+DBL+DL",
+  "states": 1872809164800.0,
+  "states_exact": true,
+  "shapes": 168,
+  "group_order": 11147673600,
+  "complete": false,
+  "gods_number": null,
+  "gods_lower": 21,
+  "gods_counting": 22,
+  "mean_distance": 20.425,
+  "mean_distance_exact": false,
+  "branching": 8.978571428571428,
+  "legal_at_solved": 12,
+  "free_corners": 4,
+  "free_edges": 10,
+  "layer_sizes": [
+   1,
+   12,
+   66,
+   252,
+   1033,
+   4714,
+   18011,
+   63884,
+   234014,
+   828519,
+   2656180,
+   8343779
+  ],
+  "antipode": "random state at distance 20: UBDUUDUFDLLLFRRBLBRDFFFLBBLDRUDDUDFUFBFBLRRRRBDLUBLRUF",
+  "edge3": {
+   "min_len": 6,
+   "exact": true,
+   "searched_to": 22,
+   "possible": 960,
+   "coverage": 1.0,
+   "example": "D B2 U D' R2 U'"
+  },
+  "corner3": {
+   "min_len": null,
+   "exact": true,
+   "searched_to": 24,
+   "possible": 0,
+   "coverage": 0.0,
+   "example": ""
+  },
+  "edge_flip": {
+   "min_len": 18,
+   "exact": true,
+   "searched_to": 24,
+   "possible": 45,
+   "coverage": 1.0,
+   "example": "D F B' L U D' B2 U' D L' F' B D' R' L B2 R L'"
+  },
+  "corner_twist": {
+   "min_len": null,
+   "exact": true,
+   "searched_to": 24,
+   "possible": 0,
+   "coverage": 0.0,
+   "example": ""
+  },
+  "seconds": 144.9427553,
+  "name": "B",
+  "input": "LDB + LD + LDF | RDB + RD + RDF"
+ }
+]

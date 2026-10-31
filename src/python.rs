@@ -403,6 +403,9 @@ fn difficulty<'py>(
     d.set_item("gods_counting", p.gods_counting)?;
     d.set_item("mean_distance", p.mean_distance)?;
     d.set_item("mean_distance_exact", p.mean_distance_exact)?;
+    d.set_item("samples", p.samples)?;
+    d.set_item("samples_resolved", p.samples_resolved)?;
+    d.set_item("antipode_distance", p.antipode_distance)?;
     d.set_item("branching", p.branching)?;
     d.set_item("legal_at_solved", p.legal_at_solved)?;
     d.set_item("free_corners", p.free_corners)?;
