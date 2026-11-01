@@ -9,13 +9,17 @@
 //!
 //! Optionally the C side is extended past the table by a depth-first stream (`extra_depth`),
 //! which finds algorithms up to `2*depth + extra_depth` moves without storing more states.
+//!
+//! The search runs on any [`Puzzle`]: the 3x3x3 ([`Bandage`]) or the 4x4x4
+//! ([`crate::cube4::Bandage4`]).
 
 use crate::cube::{diff_counts, key_mask, Bandage, Cube, Effect, KeyPart, State};
 use crate::geometry::{piece_type, PieceType, N_CUBIES};
-use crate::moves::{axis_of_base, base_of, invert, length, qtm_length, simplify, Alg, Move, N_BASES};
+use crate::moves::{base_of, invert, Alg, Move};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasherDefault, DefaultHasher, Hash, Hasher};
+use std::ops::BitAnd;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -28,7 +32,7 @@ const NO_PARENT: u32 = u32::MAX;
 pub(crate) struct MixHasher(u64);
 
 #[inline]
-fn mix64(mut x: u64) -> u64 {
+pub(crate) fn mix64(mut x: u64) -> u64 {
     x ^= x >> 30;
     x = x.wrapping_mul(0xbf58476d1ce4e5b9);
     x ^= x >> 27;
@@ -45,13 +49,68 @@ impl Hasher for MixHasher {
             self.0 = mix64(self.0 ^ b as u64);
         }
     }
+    fn write_u64(&mut self, x: u64) {
+        self.0 = mix64(x ^ self.0);
+    }
     fn write_u128(&mut self, x: u128) {
         self.0 = mix64(x as u64 ^ mix64((x >> 64) as u64 ^ self.0));
     }
 }
 
-pub(crate) type FastSet = HashSet<u128, BuildHasherDefault<MixHasher>>;
+pub(crate) type FastSet<K = u128> = HashSet<K, BuildHasherDefault<MixHasher>>;
 pub(crate) type FastMap<V> = HashMap<u128, V, BuildHasherDefault<MixHasher>>;
+
+/// A packed state, as stored in the table.
+pub trait PackedKey: Copy + Ord + Hash + Send + Sync + BitAnd<Output = Self> {
+    /// Well mixed 64-bit hash; different seeds give independent hashes.
+    fn mix(self, seed: u64) -> u64;
+}
+
+impl PackedKey for u128 {
+    #[inline]
+    fn mix(self, seed: u64) -> u64 {
+        mix64((self >> 64) as u64 ^ mix64(self as u64 ^ seed))
+    }
+}
+
+/// Why a candidate algorithm was rejected by [`Puzzle::verify`].
+pub enum Reject {
+    /// The bandage blocks one of its moves.
+    Illegal,
+    /// Legal, but the shape or the effect does not fit the query.
+    NoMatch,
+}
+
+/// What the search needs from a puzzle. It is implemented by the bandage type of each cube
+/// size, since legality and the packed form depend on the bandage.
+pub trait Puzzle: Clone + Send + Sync {
+    type State: Copy + Send + Sync;
+    type Key: PackedKey;
+
+    fn solved(&self) -> Self::State;
+    fn apply_move(s: &mut Self::State, m: Move);
+    /// A turn of base `b` is legal in state `s`.
+    fn allows(&self, s: &Self::State, b: usize) -> bool;
+    fn pack(&self, s: &Self::State) -> Self::Key;
+    fn unpack(&self, k: Self::Key) -> Self::State;
+    /// The puzzle has its home shape, blocks possibly exchanged for congruent ones.
+    fn home_shape(&self, s: &Self::State) -> bool;
+    /// Bases on one axis commute.
+    fn axis_of_base(b: usize) -> usize;
+    fn simplify(alg: &[Move]) -> Alg;
+    fn format_alg(alg: &[Move]) -> String;
+    /// Length in the slice-turn metric (rotations are free) and in the quarter-turn metric.
+    fn lengths(alg: &[Move]) -> (usize, usize);
+    /// Mask of the key parts that must agree for two table states to pair up for `q`.
+    fn key_mask(&self, q: &Query) -> Result<Self::Key, String>;
+    /// Cheap pre-filter on the difference of two keys that agree under the mask.
+    fn diff_ok(kind: Kind, a: Self::Key, b: Self::Key) -> bool;
+    /// Replay a candidate from solved: its effect, if every move is legal and it fits `q`.
+    fn verify(&self, alg: &[Move], q: &Query) -> Result<Effect, Reject>;
+}
+
+/// Bases of every puzzle fit in this many slots.
+const MAX_BASES: usize = 32;
 
 /// Number of shards of the build's dedup set.
 const SHARDS: usize = 64;
@@ -59,8 +118,8 @@ const SHARDS: usize = 64;
 /// Shard of a packed state. Uses a different mix than `MixHasher` so the hashes inside one
 /// shard stay well spread.
 #[inline]
-fn shard_of(key: u128) -> usize {
-    (mix64((key >> 64) as u64 ^ mix64(key as u64 ^ 0x9e37_79b9_7f4a_7c15)) >> 58) as usize
+fn shard_of<K: PackedKey>(key: K) -> usize {
+    (key.mix(0x9e37_79b9_7f4a_7c15) >> 58) as usize
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -73,6 +132,8 @@ pub enum Kind {
     EdgeFlip,
     /// Two corners twisted in place.
     CornerTwist,
+    /// 3-cycle of centers (4x4x4), nothing else affected.
+    Center3,
     /// Orientation only: up to 2 edges flipped and/or up to 2 corners twisted, all in place.
     Orient,
     /// Any non-trivial effect restricted to the given pieces.
@@ -86,6 +147,7 @@ impl Kind {
             "corner3" | "3c" | "corner_3cycle" | "corner_cycle" | "corners" => Kind::Corner3,
             "edge_flip" | "flip" | "2e" | "edge_flips" => Kind::EdgeFlip,
             "corner_twist" | "twist" | "2c" | "corner_twists" => Kind::CornerTwist,
+            "center3" | "3x" | "center_3cycle" | "center_cycle" | "centers" => Kind::Center3,
             "orient" | "orientation" | "rotation" | "2e2c" => Kind::Orient,
             "any" | "custom" => Kind::Any,
             _ => return Err(format!("unknown kind '{}'", s)),
@@ -98,6 +160,7 @@ impl Kind {
             Kind::Corner3 => "corner3",
             Kind::EdgeFlip => "edge_flip",
             Kind::CornerTwist => "corner_twist",
+            Kind::Center3 => "center3",
             Kind::Orient => "orient",
             Kind::Any => "any",
         }
@@ -122,6 +185,7 @@ impl Kind {
             Kind::Corner3 => d == [3, 0, 0],
             Kind::EdgeFlip => d == [0, 2, 0],
             Kind::CornerTwist => d == [2, 0, 0],
+            Kind::Center3 => false,
             Kind::Orient => d[2] == 0 && d[0] <= 2 && d[1] <= 2 && d[0] + d[1] > 0,
             Kind::Any => d != [0, 0, 0],
         }
@@ -148,6 +212,9 @@ impl Kind {
             }
             Kind::EdgeFlip => no_centers && e.n_corners() == 0 && e.edge_cycles.is_empty() && e.flipped.len() == 2,
             Kind::CornerTwist => no_centers && e.n_edges() == 0 && e.corner_cycles.is_empty() && e.twisted.len() == 2,
+            Kind::Center3 => {
+                e.n_edges() == 0 && e.n_corners() == 0 && e.center_cycles.len() == 1 && e.center_cycles[0].len() == 3
+            }
             Kind::Orient => {
                 no_centers
                     && e.edge_cycles.is_empty()
@@ -165,7 +232,7 @@ impl Kind {
 pub struct Query {
     pub kind: Kind,
     /// Restrict the effect to these cubies (bitmask). Required for `Kind::Any`.
-    pub pieces: Option<u32>,
+    pub pieces: Option<u64>,
     /// For 3-cycles: require every cycled piece to keep its orientation.
     pub pure: bool,
     /// Extra depth streamed on one side beyond the stored table.
@@ -221,10 +288,10 @@ pub struct SearchStats {
 }
 
 /// Breadth-first table of all states within `depth` moves of solved.
-pub struct Solver {
-    pub bandage: Bandage,
+pub struct Solver<P: Puzzle = Bandage> {
+    pub bandage: P,
     pub moves: Vec<Move>,
-    states: Vec<u128>,
+    states: Vec<P::Key>,
     parent: Vec<u32>,
     last: Vec<u8>,
     /// layer_start[d]..layer_start[d+1] are the states at distance d. len = depth + 2.
@@ -238,21 +305,22 @@ pub struct Solver {
 }
 
 #[inline]
-fn canonical(last: u8, m: Move) -> bool {
+fn canonical<P: Puzzle>(last: u8, m: Move) -> bool {
     if last == NO_MOVE {
         return true;
     }
     let (lb, nb) = (base_of(last), base_of(m));
     // same-axis moves commute: only allow them in increasing base order
-    !(axis_of_base(lb) == axis_of_base(nb) && nb <= lb)
+    !(P::axis_of_base(lb) == P::axis_of_base(nb) && nb <= lb)
 }
 
-impl Solver {
-    pub fn new(bandage: Bandage, moves: Vec<Move>, max_depth: usize, max_nodes: usize) -> Solver {
+impl<P: Puzzle> Solver<P> {
+    pub fn new(bandage: P, moves: Vec<Move>, max_depth: usize, max_nodes: usize) -> Solver<P> {
+        let solved = bandage.pack(&bandage.solved());
         let mut s = Solver {
             bandage,
             moves,
-            states: vec![State::solved().pack()],
+            states: vec![solved],
             parent: vec![NO_PARENT],
             last: vec![NO_MOVE],
             layer_start: vec![0, 1],
@@ -271,15 +339,15 @@ impl Solver {
     }
 
     /// Legal, canonical successors of a state.
-    fn successors(&self, st: &State, last: u8, bases: &[usize], out: &mut Vec<(State, Move)>) {
-        let mut allowed = [false; N_BASES];
+    fn successors(&self, st: &P::State, last: u8, bases: &[usize], out: &mut Vec<(P::State, Move)>) {
+        let mut allowed = [false; MAX_BASES];
         for &b in bases {
             allowed[b] = self.bandage.allows(st, b);
         }
         for &m in &self.moves {
-            if allowed[base_of(m)] && canonical(last, m) {
+            if allowed[base_of(m)] && canonical::<P>(last, m) {
                 let mut ns = *st;
-                ns.apply_move(m);
+                P::apply_move(&mut ns, m);
                 out.push((ns, m));
             }
         }
@@ -288,7 +356,7 @@ impl Solver {
     fn build(&mut self, max_depth: usize, max_nodes: usize) {
         let bases = self.bases();
         // The dedup set is sharded by key so each shard can be filled by its own thread.
-        let mut seen: Vec<FastSet> = (0..SHARDS).map(|_| FastSet::default()).collect();
+        let mut seen: Vec<FastSet<P::Key>> = (0..SHARDS).map(|_| FastSet::default()).collect();
         seen[shard_of(self.states[0])].insert(self.states[0]);
         const BATCH: usize = 1 << 15;
         for d in 1..=max_depth {
@@ -297,13 +365,14 @@ impl Solver {
             let mut i = start;
             while i < end && !overflow {
                 let j = (i + BATCH).min(end);
-                let children: Vec<(u128, u32, u8)> = (i..j)
+                let children: Vec<(P::Key, u32, u8)> = (i..j)
                     .into_par_iter()
                     .flat_map_iter(|n| {
-                        let st = State::unpack(self.states[n]);
+                        let st = self.bandage.unpack(self.states[n]);
                         let mut succ = Vec::with_capacity(self.moves.len());
                         self.successors(&st, self.last[n], &bases, &mut succ);
-                        succ.into_iter().map(move |(s, m)| (s.pack(), n as u32, m))
+                        let b = &self.bandage;
+                        succ.into_iter().map(move |(s, m)| (b.pack(&s), n as u32, m))
                     })
                     .collect();
                 // Bucket child indices by shard, keeping their order, so the first occurrence of
@@ -378,7 +447,7 @@ impl Solver {
         self.layer_start.partition_point(|&s| s <= i) - 1
     }
 
-    fn find_index(&self, key: u128) -> Option<usize> {
+    fn find_index(&self, key: P::Key) -> Option<usize> {
         self.sorted
             .binary_search_by_key(&key, |&i| self.states[i as usize])
             .ok()
@@ -386,23 +455,23 @@ impl Solver {
     }
 
     /// Distance from solved if the state is in the table (centre spin is ignored).
-    pub fn distance(&self, st: &State) -> Option<usize> {
-        self.distance_packed(st.pack())
+    pub fn distance(&self, st: &P::State) -> Option<usize> {
+        self.distance_packed(self.bandage.pack(st))
     }
 
     /// Same as `distance`, for a packed state.
-    pub fn distance_packed(&self, key: u128) -> Option<usize> {
+    pub fn distance_packed(&self, key: P::Key) -> Option<usize> {
         self.find_index(key).map(|i| self.depth_of_index(i))
     }
 
     /// Packed states at distance `d` (0..=depth).
-    pub fn layer(&self, d: usize) -> &[u128] {
+    pub fn layer(&self, d: usize) -> &[P::Key] {
         &self.states[self.layer_start[d]..self.layer_start[d + 1]]
     }
 
     /// An optimal sequence from solved to this state, if it is in the table.
-    pub fn path_to(&self, st: &State) -> Option<Alg> {
-        self.find_index(st.pack()).map(|i| self.path(i))
+    pub fn path_to(&self, st: &P::State) -> Option<Alg> {
+        self.find_index(self.bandage.pack(st)).map(|i| self.path(i))
     }
 
     fn path(&self, mut i: usize) -> Alg {
@@ -415,25 +484,12 @@ impl Solver {
         p
     }
 
-    fn key_mask_for(&self, q: &Query) -> Result<u128, String> {
+    pub fn search(&self, q: &Query) -> Result<(Vec<Found>, SearchStats), String> {
         if q.kind == Kind::Any && q.pieces.is_none() {
             return Err("kind 'any' needs an explicit list of pieces".into());
         }
-        // Bandaged cubies are pinned (algorithms must restore the bandage, see Collector::offer)
-        // unless blocks may move.
-        let pinned = if q.move_blocks { 0 } else { self.bandage.bandaged_cubies() };
-        let free_mask = q.pieces.unwrap_or(u32::MAX) & !pinned;
-        let mut parts = [KeyPart::Full; N_CUBIES];
-        for (c, p) in parts.iter_mut().enumerate() {
-            let free = free_mask & (1 << c) != 0;
-            *p = if free { q.kind.key_part(piece_type(c)) } else { KeyPart::Full };
-        }
-        Ok(key_mask(&parts))
-    }
-
-    pub fn search(&self, q: &Query) -> Result<(Vec<Found>, SearchStats), String> {
-        let mask = self.key_mask_for(q)?;
-        let mut keyed: Vec<(u128, u32)> =
+        let mask = self.bandage.key_mask(q)?;
+        let mut keyed: Vec<(P::Key, u32)> =
             self.states.par_iter().enumerate().map(|(i, &s)| (s & mask, i as u32)).collect();
         keyed.par_sort_unstable();
 
@@ -459,7 +515,7 @@ impl Solver {
                         return;
                     }
                     let (x, y) = (keyed[i].1 as usize, keyed[j].1 as usize);
-                    if q.kind.diff_ok(diff_counts(self.states[x], self.states[y])) {
+                    if P::diff_ok(q.kind, self.states[x], self.states[y]) {
                         let (pa, pc) = (self.path(x), self.path(y));
                         collector.offer(&pa, &pc);
                         collector.offer(&pc, &pa);
@@ -478,7 +534,7 @@ impl Solver {
                     return;
                 }
                 let root_path = self.path(r);
-                let st = State::unpack(self.states[r]);
+                let st = self.bandage.unpack(self.states[r]);
                 let mut path = root_path.clone();
                 self.stream(&st, self.last[r], q.extra_depth, &bases, mask, &index, &mut path, &collector);
             });
@@ -490,14 +546,14 @@ impl Solver {
     #[allow(clippy::too_many_arguments)]
     fn stream(
         &self,
-        st: &State,
+        st: &P::State,
         last: u8,
         remaining: usize,
         bases: &[usize],
-        mask: u128,
-        index: &KeyIndex,
+        mask: P::Key,
+        index: &KeyIndex<P::Key>,
         path: &mut Alg,
-        col: &Collector,
+        col: &Collector<P>,
     ) {
         let mut succ = Vec::with_capacity(self.moves.len());
         self.successors(st, last, bases, &mut succ);
@@ -505,11 +561,11 @@ impl Solver {
             if col.full() {
                 return;
             }
-            let packed = ns.pack();
+            let packed = self.bandage.pack(&ns);
             path.push(m);
             for e in index.group(packed & mask) {
                 let x = e.1 as usize;
-                if col.query.kind.diff_ok(diff_counts(self.states[x], packed)) {
+                if P::diff_ok(col.query.kind, self.states[x], packed) {
                     let pa = self.path(x);
                     col.offer(&pa, path);
                     col.offer(path, &pa);
@@ -523,15 +579,105 @@ impl Solver {
     }
 }
 
+impl Puzzle for Bandage {
+    type State = State;
+    type Key = u128;
+
+    fn solved(&self) -> State {
+        State::solved()
+    }
+
+    #[inline]
+    fn apply_move(s: &mut State, m: Move) {
+        s.apply_move(m);
+    }
+
+    #[inline]
+    fn allows(&self, s: &State, b: usize) -> bool {
+        Bandage::allows(self, s, b)
+    }
+
+    #[inline]
+    fn pack(&self, s: &State) -> u128 {
+        s.pack()
+    }
+
+    #[inline]
+    fn unpack(&self, k: u128) -> State {
+        State::unpack(k)
+    }
+
+    fn home_shape(&self, s: &State) -> bool {
+        self.shape_at_home(s)
+    }
+
+    #[inline]
+    fn axis_of_base(b: usize) -> usize {
+        crate::moves::axis_of_base(b)
+    }
+
+    fn simplify(alg: &[Move]) -> Alg {
+        crate::moves::simplify(alg)
+    }
+
+    fn format_alg(alg: &[Move]) -> String {
+        crate::moves::format_alg(alg)
+    }
+
+    fn lengths(alg: &[Move]) -> (usize, usize) {
+        (crate::moves::length(alg), crate::moves::qtm_length(alg))
+    }
+
+    fn key_mask(&self, q: &Query) -> Result<u128, String> {
+        if q.kind == Kind::Center3 {
+            return Err("kind 'center3' needs a 4x4x4".into());
+        }
+        // Bandaged cubies are pinned (algorithms must restore the bandage, see `verify`)
+        // unless blocks may move.
+        let pinned = if q.move_blocks { 0 } else { self.bandaged_cubies() as u64 };
+        let free_mask = q.pieces.unwrap_or(u64::MAX) & !pinned;
+        let mut parts = [KeyPart::Full; N_CUBIES];
+        for (c, p) in parts.iter_mut().enumerate() {
+            let free = free_mask & (1 << c) != 0;
+            *p = if free { q.kind.key_part(piece_type(c)) } else { KeyPart::Full };
+        }
+        Ok(key_mask(&parts))
+    }
+
+    #[inline]
+    fn diff_ok(kind: Kind, a: u128, b: u128) -> bool {
+        kind.diff_ok(diff_counts(a, b))
+    }
+
+    fn verify(&self, alg: &[Move], q: &Query) -> Result<Effect, Reject> {
+        let mut cube = Cube::new(self.clone());
+        cube.apply(alg).map_err(|_| Reject::Illegal)?;
+        let shape_ok = if q.move_blocks { self.shape_at_home(&cube.state) } else { cube.bandage_restored() };
+        if !shape_ok {
+            return Err(Reject::NoMatch);
+        }
+        let effect = cube.state.effect();
+        if !q.kind.matches(&effect, q.pure) {
+            return Err(Reject::NoMatch);
+        }
+        if let Some(p) = q.pieces
+            && effect.affected().iter().any(|&c| p & (1 << c) == 0)
+        {
+            return Err(Reject::NoMatch);
+        }
+        Ok(effect)
+    }
+}
+
 /// Open-addressing hash index from key to its run in the sorted `keyed` array.
-struct KeyIndex<'a> {
-    keyed: &'a [(u128, u32)],
+struct KeyIndex<'a, K> {
+    keyed: &'a [(K, u32)],
     slots: Vec<u32>, // run start + 1, 0 = empty
     mask: usize,
 }
 
-impl<'a> KeyIndex<'a> {
-    fn new(keyed: &'a [(u128, u32)]) -> Self {
+impl<'a, K: PackedKey> KeyIndex<'a, K> {
+    fn new(keyed: &'a [(K, u32)]) -> Self {
         let starts: Vec<u32> =
             (0..keyed.len()).filter(|&i| i == 0 || keyed[i].0 != keyed[i - 1].0).map(|i| i as u32).collect();
         let cap = (starts.len() * 2).next_power_of_two().max(16);
@@ -547,12 +693,12 @@ impl<'a> KeyIndex<'a> {
     }
 
     #[inline]
-    fn hash(k: u128) -> usize {
-        mix64(k as u64 ^ mix64((k >> 64) as u64)) as usize
+    fn hash(k: K) -> usize {
+        k.mix(0) as usize
     }
 
     #[inline]
-    fn group(&self, key: u128) -> &'a [(u128, u32)] {
+    fn group(&self, key: K) -> &'a [(K, u32)] {
         let mut h = Self::hash(key) & self.mask;
         loop {
             let s = self.slots[h];
@@ -570,8 +716,8 @@ impl<'a> KeyIndex<'a> {
 }
 
 /// Thread-safe verification and deduplication of candidate algorithms.
-struct Collector<'a> {
-    solver: &'a Solver,
+struct Collector<'a, P: Puzzle> {
+    solver: &'a Solver<P>,
     query: &'a Query,
     /// Verified algorithms, sharded by hash to keep lock contention low.
     found: Vec<Mutex<HashMap<Alg, Found>>>,
@@ -582,8 +728,8 @@ struct Collector<'a> {
     deadline: Option<Instant>,
 }
 
-impl<'a> Collector<'a> {
-    fn new(solver: &'a Solver, query: &'a Query) -> Self {
+impl<'a, P: Puzzle> Collector<'a, P> {
+    fn new(solver: &'a Solver<P>, query: &'a Query) -> Self {
         Collector {
             solver,
             query,
@@ -612,34 +758,19 @@ impl<'a> Collector<'a> {
         self.candidates.fetch_add(1, Ordering::Relaxed);
         let mut alg = a.to_vec();
         alg.extend(invert(c));
-        let alg = simplify(&alg);
-        let len = length(&alg);
+        let alg = P::simplify(&alg);
+        let (len, qtm) = P::lengths(&alg);
         if len == 0 || self.query.max_length.is_some_and(|m| len > m) {
             return;
         }
-        let mut cube = Cube::new(self.solver.bandage.clone());
-        if cube.apply(&alg).is_err() {
-            self.illegal.fetch_add(1, Ordering::Relaxed);
-            return;
-        }
-        let shape_ok = if self.query.move_blocks {
-            cube.bandage.shape_at_home(&cube.state)
-        } else {
-            cube.bandage_restored()
+        let effect = match self.solver.bandage.verify(&alg, self.query) {
+            Ok(e) => e,
+            Err(Reject::Illegal) => {
+                self.illegal.fetch_add(1, Ordering::Relaxed);
+                return;
+            }
+            Err(Reject::NoMatch) => return,
         };
-        if !shape_ok {
-            return;
-        }
-        let effect = cube.state.effect();
-        if !self.query.kind.matches(&effect, self.query.pure) {
-            return;
-        }
-        if let Some(p) = self.query.pieces
-            && effect.affected().iter().any(|&c| p & (1 << c) == 0)
-        {
-            return;
-        }
-        let qtm = qtm_length(&alg);
         let mut h = DefaultHasher::new();
         alg.hash(&mut h);
         let mut found = self.found[h.finish() as usize % SHARDS].lock().unwrap();
@@ -660,16 +791,13 @@ impl<'a> Collector<'a> {
             matched: found.len(),
             truncated: self.stop.into_inner(),
         };
-        let mut v: Vec<(String, Found)> =
-            found.into_par_iter().map(|f| (crate::moves::format_alg(&f.alg), f)).collect();
+        let mut v: Vec<(String, Found)> = found.into_par_iter().map(|f| (P::format_alg(&f.alg), f)).collect();
         // algs are unique, so the key is a total order and an unstable sort is deterministic
         v.par_sort_unstable_by(|a, b| (a.1.length, a.1.qtm, &a.0).cmp(&(b.1.length, b.1.qtm, &b.0)));
         let mut out: Vec<Found> = v.into_iter().map(|x| x.1).collect();
         if q.unique_effects {
-            let descs: Vec<String> = out.par_iter().map(|f| f.effect.describe()).collect();
             let mut seen = HashSet::new();
-            let mut keep = descs.into_iter().map(|d| seen.insert(d));
-            out.retain(|_| keep.next().unwrap());
+            out.retain(|f| seen.insert(f.effect.clone()));
             stats.matched = out.len();
         }
         out.truncate(q.max_results);
@@ -683,8 +811,8 @@ mod tests {
     use crate::geometry::parse_cubie;
     use crate::moves::{format_alg, parse_moveset};
 
-    fn mask(names: &[&str]) -> u32 {
-        names.iter().map(|n| 1u32 << parse_cubie(n).unwrap()).sum()
+    fn mask(names: &[&str]) -> u64 {
+        names.iter().map(|n| 1u64 << parse_cubie(n).unwrap()).sum()
     }
 
     #[test]

@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "rubik"
 version = "0.1.0"
-description = "3x3x3 Rubik's cube engine with bandaging and an algorithm search engine (Rust core)"
+description = "3x3x3 and 4x4x4 Rubik's cube engine with bandaging and an algorithm search engine (Rust core)"
 requires-python = ">=3.9"
 classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: Implementation :: CPython"]
 

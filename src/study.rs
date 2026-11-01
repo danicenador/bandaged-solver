@@ -22,7 +22,7 @@ use crate::cube::{diff_counts, Bandage, State};
 use crate::group::{candidate_effects, count_states, point0, Chain, Perm};
 use crate::geometry::{geom, piece_type, PieceType, EDGE0, ID_ROT, N_CUBIES};
 use crate::moves::{base_of, format_alg, parse_moveset, Move};
-use crate::search::{FastSet, Kind, Query, Solver};
+use crate::search::{FastSet, Kind, Puzzle, Query, Solver};
 use rayon::prelude::*;
 use std::time::Instant;
 
@@ -479,11 +479,11 @@ pub fn profile(bandage: &Bandage, cfg: &StudyConfig) -> Profile {
 /// Every state of the table (other than solved) with the home shape, possibly with blocks
 /// exchanged, as (distance, packed state), nearest first. On a complete table these are all the
 /// block-level effects of the puzzle, each with its optimal length.
-pub fn home_shape_states(solver: &Solver) -> Vec<(usize, u128)> {
-    let mut v: Vec<(usize, u128)> = (1..=solver.depth)
+pub fn home_shape_states<P: Puzzle>(solver: &Solver<P>) -> Vec<(usize, P::Key)> {
+    let mut v: Vec<(usize, P::Key)> = (1..=solver.depth)
         .into_par_iter()
         .flat_map(|d| solver.layer(d).par_iter().map(move |&k| (d, k)))
-        .filter(|&(_, k)| solver.bandage.shape_at_home(&State::unpack(k)))
+        .filter(|&(_, k)| solver.bandage.home_shape(&solver.bandage.unpack(k)))
         .collect();
     v.par_sort_unstable();
     v

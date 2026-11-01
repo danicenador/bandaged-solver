@@ -103,9 +103,17 @@ fn build_tables() -> MoveTables {
 /// `(R U R' U')3`, commutators `[R, U]`, conjugates `[R: U]`, and an inverse suffix on groups
 /// `(R U)'`. Whitespace is optional.
 pub fn parse_alg(s: &str) -> Result<Alg, String> {
+    parse_alg_with(s, parse_move)
+}
+
+/// Reads one move token at `pos` (the notation of one cube size).
+pub(crate) type MoveParser = fn(&[char], &mut usize) -> Result<Move, String>;
+
+/// `parse_alg` with another move notation (the grouping syntax is shared).
+pub(crate) fn parse_alg_with(s: &str, pm: MoveParser) -> Result<Alg, String> {
     let chars: Vec<char> = s.chars().collect();
     let mut pos = 0;
-    let alg = parse_seq(&chars, &mut pos)?;
+    let alg = parse_seq(&chars, &mut pos, pm)?;
     skip_ws(&chars, &mut pos);
     if pos != chars.len() {
         return Err(format!("unexpected '{}' at position {}", chars[pos], pos));
@@ -113,13 +121,13 @@ pub fn parse_alg(s: &str) -> Result<Alg, String> {
     Ok(alg)
 }
 
-fn skip_ws(c: &[char], pos: &mut usize) {
+pub(crate) fn skip_ws(c: &[char], pos: &mut usize) {
     while *pos < c.len() && (c[*pos].is_whitespace() || c[*pos] == '.') {
         *pos += 1;
     }
 }
 
-fn parse_seq(c: &[char], pos: &mut usize) -> Result<Alg, String> {
+fn parse_seq(c: &[char], pos: &mut usize, pm: MoveParser) -> Result<Alg, String> {
     let mut out = Vec::new();
     loop {
         skip_ws(c, pos);
@@ -130,20 +138,20 @@ fn parse_seq(c: &[char], pos: &mut usize) -> Result<Alg, String> {
             ')' | ']' | ',' | ':' => return Ok(out),
             '(' => {
                 *pos += 1;
-                let inner = parse_seq(c, pos)?;
+                let inner = parse_seq(c, pos, pm)?;
                 expect(c, pos, ')')?;
                 out.extend(apply_power(inner, c, pos));
             }
             '[' => {
                 *pos += 1;
-                let a = parse_seq(c, pos)?;
+                let a = parse_seq(c, pos, pm)?;
                 skip_ws(c, pos);
                 let sep = *c.get(*pos).ok_or("unterminated '['")?;
                 if sep != ',' && sep != ':' {
                     return Err(format!("expected ',' or ':' at position {}", pos));
                 }
                 *pos += 1;
-                let b = parse_seq(c, pos)?;
+                let b = parse_seq(c, pos, pm)?;
                 expect(c, pos, ']')?;
                 let mut g = a.clone();
                 g.extend(&b);
@@ -153,7 +161,7 @@ fn parse_seq(c: &[char], pos: &mut usize) -> Result<Alg, String> {
                 }
                 out.extend(apply_power(g, c, pos));
             }
-            _ => out.push(parse_move(c, pos)?),
+            _ => out.push(pm(c, pos)?),
         }
     }
 }
@@ -168,7 +176,7 @@ fn expect(c: &[char], pos: &mut usize, ch: char) -> Result<(), String> {
     }
 }
 
-fn read_number(c: &[char], pos: &mut usize) -> Option<u32> {
+pub(crate) fn read_number(c: &[char], pos: &mut usize) -> Option<u32> {
     let start = *pos;
     while *pos < c.len() && c[*pos].is_ascii_digit() {
         *pos += 1;
@@ -191,7 +199,7 @@ fn apply_power(g: Alg, c: &[char], pos: &mut usize) -> Alg {
     out
 }
 
-fn parse_move(c: &[char], pos: &mut usize) -> Result<Move, String> {
+pub(crate) fn parse_move(c: &[char], pos: &mut usize) -> Result<Move, String> {
     let ch = c[*pos];
     let mut base = BASE_NAMES
         .iter()
@@ -206,6 +214,11 @@ fn parse_move(c: &[char], pos: &mut usize) -> Result<Move, String> {
         base += 3;
         *pos += 1;
     }
+    parse_turns(c, pos, base)
+}
+
+/// The turn suffix of a move (`2`, `'`, `3'`...) after its base.
+pub(crate) fn parse_turns(c: &[char], pos: &mut usize, base: usize) -> Result<Move, String> {
     let n = read_number(c, pos).unwrap_or(1);
     let mut amount = (n % 4) as i32;
     if c.get(*pos) == Some(&'\'') {
@@ -230,24 +243,29 @@ pub fn invert(alg: &[Move]) -> Alg {
 /// Cancel and merge moves inside runs of same-axis moves (which commute). Moves on different
 /// layer sets are never fused (R M' is not turned into r), so bandage legality is preserved.
 pub fn simplify(alg: &[Move]) -> Alg {
+    simplify_with(alg, 6)
+}
+
+/// `simplify` for a notation with `per_axis` bases per axis (bases numbered axis by axis).
+pub(crate) fn simplify_with(alg: &[Move], per_axis: usize) -> Alg {
     let mut out = Vec::with_capacity(alg.len());
     let mut i = 0;
     while i < alg.len() {
-        let axis = axis_of_base(base_of(alg[i]));
-        let mut turns = [0u8; 6];
-        while i < alg.len() && axis_of_base(base_of(alg[i])) == axis {
-            let k = base_of(alg[i]) % 6;
+        let axis = base_of(alg[i]) / per_axis;
+        let mut turns = [0u8; 8];
+        while i < alg.len() && base_of(alg[i]) / per_axis == axis {
+            let k = base_of(alg[i]) % per_axis;
             turns[k] = (turns[k] + amount_of(alg[i])) % 4;
             i += 1;
         }
         for (k, &t) in turns.iter().enumerate() {
             if t != 0 {
-                out.push(mv(axis * 6 + k, t));
+                out.push(mv(axis * per_axis + k, t));
             }
         }
     }
     // a run that cancelled completely may have joined two runs of the same axis
-    if out.len() < alg.len() { simplify(&out) } else { out }
+    if out.len() < alg.len() { simplify_with(&out, per_axis) } else { out }
 }
 
 /// Length in the slice-turn metric (rotations x/y/z are free).

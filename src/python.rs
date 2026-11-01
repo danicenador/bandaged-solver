@@ -1,9 +1,12 @@
 //! Python bindings (module `rubik._rubik`, re-exported by the `rubik` package).
+//!
+//! `Cube` and `Solver` take a `size` (3 or 4); the difficulty study is 3x3x3 only.
 
-use crate::cube::{Bandage, Cube, Effect};
-use crate::geometry::{parse_cubie, NAMES, N_CUBIES};
-use crate::moves::{format_alg, invert, length, parse_alg, parse_moveset, qtm_length, simplify};
-use crate::search::{Kind, Query, SearchStats, Solver};
+use crate::cube::{Bandage, Cube, Effect, State};
+use crate::cube4::{self, geo4, Bandage4, Cube4, State4};
+use crate::geometry::{piece_type, PieceType, NAMES};
+use crate::moves::{self, Alg, Move};
+use crate::search::{Kind, Puzzle, Query, SearchStats, Solver};
 use crate::study::{profile, Rng, StudyConfig, ALG_KINDS};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -14,99 +17,276 @@ fn err(e: String) -> PyErr {
 }
 
 /// Accepts None, a string ("UF+UFR+UR | D DF"), a list of strings (one block each) or a list
-/// of lists of cubie names.
-fn bandage_from(spec: Option<&Bound<'_, PyAny>>) -> PyResult<Bandage> {
+/// of lists of cubie names, and returns it as a bandage string.
+fn bandage_spec(spec: Option<&Bound<'_, PyAny>>) -> PyResult<String> {
     let Some(spec) = spec.filter(|s| !s.is_none()) else {
-        return Ok(Bandage::none());
+        return Ok(String::new());
     };
     if let Ok(s) = spec.extract::<String>() {
-        return Bandage::parse(&s).map_err(err);
+        return Ok(s);
     }
     if let Ok(groups) = spec.extract::<Vec<Vec<String>>>() {
-        return Bandage::from_names(&groups).map_err(err);
+        return Ok(groups.iter().map(|g| g.join("+")).collect::<Vec<_>>().join("|"));
     }
     if let Ok(blocks) = spec.extract::<Vec<String>>() {
-        return Bandage::parse(&blocks.join("|")).map_err(err);
+        return Ok(blocks.join("|"));
     }
     Err(err("bandage must be a string, a list of strings or a list of lists of cubie names".into()))
 }
 
-fn effect_dict<'py>(py: Python<'py>, e: &Effect) -> PyResult<Bound<'py, PyDict>> {
-    let names = |cyc: &Vec<(usize, u8)>| cyc.iter().map(|x| NAMES[x.0]).collect::<Vec<_>>();
+/// A 3x3x3 bandage (for the 3x3x3-only functions).
+fn bandage_from(spec: Option<&Bound<'_, PyAny>>) -> PyResult<Bandage> {
+    Bandage::parse(&bandage_spec(spec)?).map_err(err)
+}
+
+fn check_size(size: usize) -> PyResult<()> {
+    if size == 3 || size == 4 { Ok(()) } else { Err(err(format!("size must be 3 or 4, not {}", size))) }
+}
+
+/// What the bindings need from each cube size.
+trait Sized3or4: Puzzle {
+    const DEFAULT_MOVES: &'static str;
+    const DEFAULT_DEPTH: usize;
+    fn names() -> &'static [&'static str];
+    fn parse_bandage(spec: &str) -> Result<Self, String>;
+    fn parse_moveset(s: &str) -> Result<Vec<Move>, String>;
+    fn parse_cubie(name: &str) -> Option<usize>;
+    fn move_name(m: Move) -> String;
+    fn effect_of(&self, s: &Self::State) -> Effect;
+    fn describe_blocks(&self, s: &Self::State) -> String;
+    fn n_blocks(&self) -> usize;
+    /// Every unglued corner and edge (wing) is home and oriented.
+    fn free_solved(&self, s: &Self::State) -> bool;
+
+    fn parse_pieces(names: Vec<String>) -> PyResult<u64> {
+        let mut m = 0u64;
+        for name in names {
+            m |= 1 << Self::parse_cubie(&name).ok_or_else(|| err(format!("unknown cubie '{}'", name)))?;
+        }
+        Ok(m)
+    }
+
+    /// State after `alg` from solved, if the bandage allows it.
+    fn replay(&self, alg: &[Move]) -> Result<Self::State, String> {
+        let mut s = self.solved();
+        for (i, &m) in alg.iter().enumerate() {
+            if !self.allows(&s, moves::base_of(m)) {
+                return Err(format!("move {} ({}) is blocked by the bandage", i + 1, Self::move_name(m)));
+            }
+            Self::apply_move(&mut s, m);
+        }
+        Ok(s)
+    }
+}
+
+impl Sized3or4 for Bandage {
+    const DEFAULT_MOVES: &'static str = "htm";
+    const DEFAULT_DEPTH: usize = 6;
+    fn names() -> &'static [&'static str] {
+        &NAMES
+    }
+    fn parse_bandage(spec: &str) -> Result<Self, String> {
+        Bandage::parse(spec)
+    }
+    fn parse_moveset(s: &str) -> Result<Vec<Move>, String> {
+        moves::parse_moveset(s)
+    }
+    fn parse_cubie(name: &str) -> Option<usize> {
+        crate::geometry::parse_cubie(name)
+    }
+    fn move_name(m: Move) -> String {
+        moves::move_name(m)
+    }
+    fn effect_of(&self, s: &State) -> Effect {
+        s.effect()
+    }
+    fn describe_blocks(&self, s: &State) -> String {
+        Bandage::describe_blocks(self, s)
+    }
+    fn n_blocks(&self) -> usize {
+        self.blocks.len()
+    }
+    fn free_solved(&self, s: &State) -> bool {
+        let glued = self.bandaged_cubies();
+        (0..NAMES.len())
+            .filter(|&c| glued & (1 << c) == 0 && piece_type(c) != PieceType::Center)
+            .all(|c| s.slot(c) == c && s.ori(c) == 0)
+    }
+}
+
+impl Sized3or4 for Bandage4 {
+    const DEFAULT_MOVES: &'static str = "stm";
+    const DEFAULT_DEPTH: usize = 4;
+    fn names() -> &'static [&'static str] {
+        &geo4().names
+    }
+    fn parse_bandage(spec: &str) -> Result<Self, String> {
+        Bandage4::parse(spec)
+    }
+    fn parse_moveset(s: &str) -> Result<Vec<Move>, String> {
+        cube4::parse_moveset4(s)
+    }
+    fn parse_cubie(name: &str) -> Option<usize> {
+        cube4::parse_cubie4(name)
+    }
+    fn move_name(m: Move) -> String {
+        cube4::move_name4(m)
+    }
+    fn effect_of(&self, s: &State4) -> Effect {
+        self.effect(s)
+    }
+    fn describe_blocks(&self, s: &State4) -> String {
+        Bandage4::describe_blocks(self, s)
+    }
+    fn n_blocks(&self) -> usize {
+        self.blocks.len()
+    }
+    fn free_solved(&self, s: &State4) -> bool {
+        let glued = self.bandaged_cubies();
+        (0..cube4::CENTER0_4).filter(|&c| glued & (1 << c) == 0).all(|c| s.slot(c) == c && s.ori(c) == 0)
+    }
+}
+
+fn effect_dict<'py>(py: Python<'py>, e: &Effect, names: &[&'static str]) -> PyResult<Bound<'py, PyDict>> {
+    let cycle = |cyc: &Vec<(usize, u8)>| cyc.iter().map(|x| names[x.0]).collect::<Vec<_>>();
     let d = PyDict::new(py);
-    d.set_item("description", e.describe())?;
-    d.set_item("edge_cycles", e.edge_cycles.iter().map(names).collect::<Vec<_>>())?;
-    d.set_item("corner_cycles", e.corner_cycles.iter().map(names).collect::<Vec<_>>())?;
+    d.set_item("description", e.describe_with(names))?;
+    d.set_item("edge_cycles", e.edge_cycles.iter().map(cycle).collect::<Vec<_>>())?;
+    d.set_item("corner_cycles", e.corner_cycles.iter().map(cycle).collect::<Vec<_>>())?;
     d.set_item(
         "center_cycles",
-        e.center_cycles.iter().map(|c| c.iter().map(|&x| NAMES[x]).collect::<Vec<_>>()).collect::<Vec<_>>(),
+        e.center_cycles.iter().map(|c| c.iter().map(|&x| names[x]).collect::<Vec<_>>()).collect::<Vec<_>>(),
     )?;
-    d.set_item("flipped", e.flipped.iter().map(|&c| NAMES[c]).collect::<Vec<_>>())?;
+    d.set_item("flipped", e.flipped.iter().map(|&c| names[c]).collect::<Vec<_>>())?;
     d.set_item(
         "twisted",
-        e.twisted.iter().map(|&(c, o)| (NAMES[c], if o == 1 { "cw" } else { "ccw" })).collect::<Vec<_>>(),
+        e.twisted.iter().map(|&(c, o)| (names[c], if o == 1 { "cw" } else { "ccw" })).collect::<Vec<_>>(),
     )?;
-    d.set_item("affected", e.affected().iter().map(|&c| NAMES[c]).collect::<Vec<_>>())?;
+    d.set_item("affected", e.affected().iter().map(|&c| names[c]).collect::<Vec<_>>())?;
     d.set_item("pure", e.is_pure())?;
     d.set_item("n_edges", e.n_edges())?;
     d.set_item("n_corners", e.n_corners())?;
     Ok(d)
 }
 
-/// A 3x3x3 cube, optionally bandaged.
+#[derive(Clone)]
+enum AnyCube {
+    C3(Cube),
+    C4(Cube4),
+}
+
+/// A 3x3x3 or 4x4x4 cube, optionally bandaged.
 ///
 /// Args:
 ///     bandage: blocks of cubies that always move together, as a string ("UF+UFR+UR | D+DF"),
 ///         a list of strings (["UF UFR UR", "D DF"]) or a list of lists of cubie names.
-///         Overlapping blocks are merged.
+///         Overlapping blocks are merged. 4x4x4 names use uppercase for outer and lowercase for
+///         inner coordinates: corner "UFR", wing "UFr" (UF edge, next to R), center "Ufr".
 ///     alg: optional algorithm applied after construction.
+///     size: 3 or 4.
 #[pyclass(name = "Cube", module = "rubik")]
 #[derive(Clone)]
 pub struct PyCube {
-    inner: Cube,
+    inner: AnyCube,
+}
+
+impl PyCube {
+    fn parse(&self, alg: &str) -> PyResult<Alg> {
+        match &self.inner {
+            AnyCube::C3(_) => moves::parse_alg(alg),
+            AnyCube::C4(_) => cube4::parse_alg4(alg),
+        }
+        .map_err(err)
+    }
+
+    fn names(&self) -> &'static [&'static str] {
+        match &self.inner {
+            AnyCube::C3(_) => &NAMES,
+            AnyCube::C4(_) => &geo4().names,
+        }
+    }
+
+    fn apply_alg(&mut self, alg: &[Move]) -> Result<(), String> {
+        match &mut self.inner {
+            AnyCube::C3(c) => c.apply(alg),
+            AnyCube::C4(c) => c.apply(alg),
+        }
+    }
 }
 
 #[pymethods]
 impl PyCube {
     #[new]
-    #[pyo3(signature = (bandage = None, alg = None))]
-    fn new(bandage: Option<&Bound<'_, PyAny>>, alg: Option<&str>) -> PyResult<Self> {
-        let mut c = PyCube { inner: Cube::new(bandage_from(bandage)?) };
+    #[pyo3(signature = (bandage = None, alg = None, size = 3))]
+    fn new(bandage: Option<&Bound<'_, PyAny>>, alg: Option<&str>, size: usize) -> PyResult<Self> {
+        check_size(size)?;
+        let spec = bandage_spec(bandage)?;
+        let inner = if size == 3 {
+            AnyCube::C3(Cube::new(Bandage::parse(&spec).map_err(err)?))
+        } else {
+            AnyCube::C4(Cube4::new(Bandage4::parse(&spec).map_err(err)?))
+        };
+        let mut c = PyCube { inner };
         if let Some(a) = alg {
-            c.inner.apply(&parse_alg(a).map_err(err)?).map_err(err)?;
+            let a = c.parse(a)?;
+            c.apply_alg(&a).map_err(err)?;
         }
         Ok(c)
+    }
+
+    /// 3 or 4.
+    #[getter]
+    fn size(&self) -> usize {
+        match &self.inner {
+            AnyCube::C3(_) => 3,
+            AnyCube::C4(_) => 4,
+        }
     }
 
     /// Apply an algorithm. Raises ValueError (and leaves the cube unchanged) if a move is
     /// blocked by the bandage. Returns the cube, so calls can be chained.
     fn apply<'py>(mut slf: PyRefMut<'py, Self>, alg: &str) -> PyResult<PyRefMut<'py, Self>> {
-        let a = parse_alg(alg).map_err(err)?;
-        slf.inner.apply(&a).map_err(err)?;
+        let a = slf.parse(alg)?;
+        slf.apply_alg(&a).map_err(err)?;
         Ok(slf)
     }
 
     /// True if the whole algorithm can be executed from the current state.
     fn can_apply(&self, alg: &str) -> PyResult<bool> {
-        let a = parse_alg(alg).map_err(err)?;
-        Ok(self.inner.clone().apply(&a).is_ok())
+        let a = self.parse(alg)?;
+        Ok(self.clone().apply_alg(&a).is_ok())
     }
 
-    /// Moves of the move set (default: the 18 face turns) that the bandage allows now.
-    #[pyo3(signature = (moves = "htm"))]
-    fn legal_moves(&self, moves: &str) -> PyResult<Vec<String>> {
-        let ms = parse_moveset(moves).map_err(err)?;
-        Ok(self.inner.legal_moves(&ms).iter().map(|&m| crate::moves::move_name(m)).collect())
+    /// Moves of the move set that the bandage allows now. The default move set is the 18 face
+    /// turns on the 3x3x3 and every single-layer turn (outer and inner) on the 4x4x4.
+    #[pyo3(signature = (moves = None))]
+    fn legal_moves(&self, moves: Option<&str>) -> PyResult<Vec<String>> {
+        Ok(match &self.inner {
+            AnyCube::C3(c) => {
+                let ms = moves::parse_moveset(moves.unwrap_or(Bandage::DEFAULT_MOVES)).map_err(err)?;
+                c.legal_moves(&ms).iter().map(|&m| moves::move_name(m)).collect()
+            }
+            AnyCube::C4(c) => {
+                let ms = cube4::parse_moveset4(moves.unwrap_or(Bandage4::DEFAULT_MOVES)).map_err(err)?;
+                c.legal_moves(&ms).iter().map(|&m| cube4::move_name4(m)).collect()
+            }
+        })
     }
 
-    /// Solved, including the bandage shape (bandaged centers must not be spun).
+    /// Solved, including the bandage shape (bandaged centers must not be spun or moved).
     fn is_solved(&self) -> bool {
-        self.inner.is_solved()
+        match &self.inner {
+            AnyCube::C3(c) => c.is_solved(),
+            AnyCube::C4(c) => c.is_solved(),
+        }
     }
 
     /// Return to the solved state (the bandage is kept).
     fn reset(&mut self) {
-        self.inner.state = crate::cube::State::solved();
+        match &mut self.inner {
+            AnyCube::C3(c) => c.state = State::solved(),
+            AnyCube::C4(c) => c.state = State4::solved(),
+        }
     }
 
     fn copy(&self) -> Self {
@@ -117,67 +297,106 @@ impl PyCube {
         self.clone()
     }
 
-    /// 54 facelet colours as a string in URFDLB order (each face row by row, Kociemba layout).
+    /// Facelet colours as a string in URFDLB order, each face row by row (Kociemba layout):
+    /// 54 characters on the 3x3x3, 96 on the 4x4x4.
     fn facelets(&self) -> String {
-        self.inner.state.facelets()
+        match &self.inner {
+            AnyCube::C3(c) => c.state.facelets(),
+            AnyCube::C4(c) => c.state.facelets(),
+        }
     }
 
-    /// What the current state does relative to solved: cycles, flips, twists.
+    /// What the current state does relative to solved: cycles, flips, twists. On the 4x4x4,
+    /// wings are reported as edges and centers of one colour are interchangeable unless glued.
     fn effect<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        effect_dict(py, &self.inner.state.effect())
+        let e = match &self.inner {
+            AnyCube::C3(c) => c.state.effect(),
+            AnyCube::C4(c) => c.effect(),
+        };
+        effect_dict(py, &e, self.names())
     }
 
     /// Bandage blocks as lists of cubie names.
     #[getter]
     fn bandage(&self) -> Vec<Vec<String>> {
-        self.inner.bandage.block_names()
+        match &self.inner {
+            AnyCube::C3(c) => c.bandage.block_names(),
+            AnyCube::C4(c) => c.bandage.block_names(),
+        }
     }
 
     /// Moved blocks as cycles, e.g. "(UFL+UF ULB+UB)" (the block at the first home is now at the
     /// second); "" if every block is home, "?" if the puzzle does not have its home shape.
     fn blocks_moved(&self) -> String {
-        self.inner.bandage.describe_blocks(&self.inner.state)
+        match &self.inner {
+            AnyCube::C3(c) => c.bandage.describe_blocks(&c.state),
+            AnyCube::C4(c) => c.bandage.describe_blocks(&c.state),
+        }
     }
 
     /// Pairs of facelet indices (same face, adjacent) whose cubies are glued together.
     fn bonded_facelet_pairs(&self) -> Vec<(usize, usize)> {
-        self.inner.bandage.bonded_facelet_pairs(&self.inner.state)
+        match &self.inner {
+            AnyCube::C3(c) => c.bandage.bonded_facelet_pairs(&c.state),
+            AnyCube::C4(c) => c.bandage.bonded_facelet_pairs(&c.state),
+        }
     }
 
-    /// Name of the cubie currently showing each of the 54 facelets.
+    /// Name of the cubie currently showing each facelet.
     fn facelet_cubies(&self) -> Vec<&'static str> {
-        crate::cube::facelet_cubies(&self.inner.state).iter().map(|&c| NAMES[c]).collect()
+        let names = self.names();
+        match &self.inner {
+            AnyCube::C3(c) => crate::cube::facelet_cubies(&c.state).iter().map(|&x| names[x]).collect(),
+            AnyCube::C4(c) => cube4::facelet_cubies4(&c.state).iter().map(|&x| names[x]).collect(),
+        }
     }
 
     /// For every cubie: (name, name of the slot it occupies, orientation).
     fn pieces(&self) -> Vec<(&'static str, &'static str, u8)> {
-        (0..N_CUBIES).map(|c| (NAMES[c], NAMES[self.inner.state.slot(c)], self.inner.state.ori(c))).collect()
+        let names = self.names();
+        match &self.inner {
+            AnyCube::C3(c) => (0..names.len()).map(|x| (names[x], names[c.state.slot(x)], c.state.ori(x))).collect(),
+            AnyCube::C4(c) => (0..names.len()).map(|x| (names[x], names[c.state.slot(x)], c.state.ori(x))).collect(),
+        }
     }
 
     fn __eq__(&self, other: &Self) -> bool {
-        self.inner.state.pack() == other.inner.state.pack() && self.inner.bandage == other.inner.bandage
+        match (&self.inner, &other.inner) {
+            (AnyCube::C3(a), AnyCube::C3(b)) => a.state.pack() == b.state.pack() && a.bandage == b.bandage,
+            (AnyCube::C4(a), AnyCube::C4(b)) => {
+                a.bandage == b.bandage && a.bandage.canonical(&a.state) == b.bandage.canonical(&b.state)
+            }
+            _ => false,
+        }
     }
 
     fn __repr__(&self) -> String {
-        let f: Vec<char> = self.inner.state.facelets().chars().collect();
+        let n = self.size();
+        let f: Vec<char> = self.facelets().chars().collect();
         let row = |face: usize, r: usize| -> String {
-            (0..3).map(|c| f[face * 9 + r * 3 + c].to_string()).collect::<Vec<_>>().join(" ")
+            (0..n).map(|c| f[face * n * n + r * n + c].to_string()).collect::<Vec<_>>().join(" ")
         };
+        let pad = " ".repeat(2 * n);
         let mut s = String::new();
-        for r in 0..3 {
-            s += &format!("      {}\n", row(0, r));
+        for r in 0..n {
+            s += &format!("{}{}\n", pad, row(0, r));
         }
-        for r in 0..3 {
+        for r in 0..n {
             s += &format!("{} {} {} {}\n", row(4, r), row(2, r), row(1, r), row(5, r));
         }
-        for r in 0..3 {
-            s += &format!("      {}\n", row(3, r));
+        for r in 0..n {
+            s += &format!("{}{}\n", pad, row(3, r));
         }
         s
     }
 }
 
-/// Meet-in-the-middle algorithm search for a (bandaged) cube.
+enum AnySolver {
+    S3(Solver),
+    S4(Solver<Bandage4>),
+}
+
+/// Meet-in-the-middle algorithm search for a (bandaged) 3x3x3 or 4x4x4.
 ///
 /// Building the solver enumerates every state within `depth` moves of solved (stopping early,
 /// at a complete layer, if `max_nodes` would be exceeded). Queries then find algorithms of up to
@@ -185,38 +404,125 @@ impl PyCube {
 ///
 /// Args:
 ///     bandage: blocks of cubies, same formats as for Cube.
-///     moves: move set, e.g. "htm" (18 face turns), "stm" (faces + slices), "R U F",
-///         "U M", "htm slices wide". A base without suffix adds its three turns.
-///     depth: maximum table depth.
-///     max_nodes: maximum number of stored states (about 40 bytes each).
+///     moves: move set. 3x3x3: "htm" (18 face turns, the default), "stm" (faces + slices),
+///         "R U F", "U M", "htm slices wide". 4x4x4: "stm" (every outer and inner layer, the
+///         default), "htm" (outer faces), "inner", "wide", "R 2R U". A base without suffix
+///         adds its three turns.
+///     depth: maximum table depth (default 6 on the 3x3x3, 4 on the 4x4x4).
+///     max_nodes: maximum number of stored states (about 40 bytes each on the 3x3x3, 60 on the
+///         4x4x4).
+///     size: 3 or 4.
 #[pyclass(name = "Solver", module = "rubik")]
 pub struct PySolver {
-    inner: Solver,
+    inner: AnySolver,
     last_stats: SearchStats,
+}
+
+fn build_solver<P: Sized3or4>(
+    py: Python<'_>,
+    spec: &str,
+    moves: Option<&str>,
+    depth: Option<usize>,
+    max_nodes: usize,
+) -> PyResult<Solver<P>> {
+    let b = P::parse_bandage(spec).map_err(err)?;
+    let ms = P::parse_moveset(moves.unwrap_or(P::DEFAULT_MOVES)).map_err(err)?;
+    let depth = depth.unwrap_or(P::DEFAULT_DEPTH);
+    Ok(py.detach(|| Solver::new(b, ms, depth, max_nodes)))
+}
+
+fn find_in<'py, P: Sized3or4>(
+    py: Python<'py>,
+    solver: &Solver<P>,
+    q: Query,
+) -> PyResult<(Vec<Bound<'py, PyDict>>, SearchStats)> {
+    let (found, stats) = py.detach(|| solver.search(&q)).map_err(err)?;
+    let names = P::names();
+    let dicts = found
+        .iter()
+        .map(|f| {
+            let d = PyDict::new(py);
+            d.set_item("alg", P::format_alg(&f.alg))?;
+            d.set_item("length", f.length)?;
+            d.set_item("qtm", f.qtm)?;
+            d.set_item("effect", f.effect.describe_with(names))?;
+            d.set_item("pieces", f.effect.affected().iter().map(|&c| names[c]).collect::<Vec<_>>())?;
+            d.set_item("pure", f.effect.is_pure())?;
+            d.set_item("kind", q.kind.name())?;
+            let st = solver.bandage.replay(&f.alg).map_err(err)?;
+            d.set_item("blocks", solver.bandage.describe_blocks(&st))?;
+            Ok(d)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    Ok((dicts, stats))
+}
+
+fn home_shapes_in<'py, P: Sized3or4>(
+    py: Python<'py>,
+    solver: &Solver<P>,
+    max_results: usize,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let found = py.detach(|| crate::study::home_shape_states(solver));
+    let names = P::names();
+    found
+        .iter()
+        .take(max_results)
+        .map(|&(d, k)| {
+            let st = solver.bandage.unpack(k);
+            let alg = solver.path_to(&st).unwrap();
+            let dict = PyDict::new(py);
+            dict.set_item("alg", P::format_alg(&alg))?;
+            dict.set_item("length", d)?;
+            dict.set_item("blocks", solver.bandage.describe_blocks(&st))?;
+            dict.set_item("effect", solver.bandage.effect_of(&st).describe_with(names))?;
+            dict.set_item("free_solved", solver.bandage.free_solved(&st))?;
+            Ok(dict)
+        })
+        .collect()
+}
+
+fn moves_of<P: Sized3or4>(solver: &Solver<P>) -> Vec<String> {
+    solver.moves.iter().map(|&m| P::move_name(m)).collect()
+}
+
+/// Run `$body` with `$s` bound to the solver of either size.
+macro_rules! with_solver {
+    ($self:expr, $s:ident => $body:expr) => {
+        match &$self.inner {
+            AnySolver::S3($s) => $body,
+            AnySolver::S4($s) => $body,
+        }
+    };
 }
 
 #[pymethods]
 impl PySolver {
     #[new]
-    #[pyo3(signature = (bandage = None, moves = "htm", depth = 6, max_nodes = 5_000_000))]
+    #[pyo3(signature = (bandage = None, moves = None, depth = None, max_nodes = 5_000_000, size = 3))]
     fn new(
         py: Python<'_>,
         bandage: Option<&Bound<'_, PyAny>>,
-        moves: &str,
-        depth: usize,
+        moves: Option<&str>,
+        depth: Option<usize>,
         max_nodes: usize,
+        size: usize,
     ) -> PyResult<Self> {
-        let b = bandage_from(bandage)?;
-        let ms = parse_moveset(moves).map_err(err)?;
-        let inner = py.detach(|| Solver::new(b, ms, depth, max_nodes));
+        check_size(size)?;
+        let spec = bandage_spec(bandage)?;
+        let inner = if size == 3 {
+            AnySolver::S3(build_solver::<Bandage>(py, &spec, moves, depth, max_nodes)?)
+        } else {
+            AnySolver::S4(build_solver::<Bandage4>(py, &spec, moves, depth, max_nodes)?)
+        };
         Ok(PySolver { inner, last_stats: SearchStats::default() })
     }
 
     /// Find algorithms.
     ///
     /// Args:
-    ///     kind: "edge3" (edge 3-cycle), "corner3" (corner 3-cycle), "edge_flip" (2 edges
-    ///         flipped), "corner_twist" (2 corners twisted), "orient" (up to 2 flips and/or
+    ///     kind: "edge3" (edge 3-cycle; wing 3-cycle on the 4x4x4), "corner3" (corner 3-cycle),
+    ///         "center3" (center 3-cycle, 4x4x4 only), "edge_flip" (2 edges flipped, 3x3x3
+    ///         only), "corner_twist" (2 corners twisted), "orient" (up to 2 flips and/or
     ///         2 twists, all in place), or "any" (anything restricted to `pieces`).
     ///     pieces: restrict the effect to these cubies, e.g. ["UF", "UR", "UB"].
     ///     pure: 3-cycles must keep the orientation of the cycled pieces.
@@ -244,18 +550,7 @@ impl PySolver {
         move_blocks: bool,
     ) -> PyResult<Vec<Bound<'py, PyDict>>> {
         let kind = Kind::parse(kind).map_err(err)?;
-        let pieces = match pieces {
-            None => None,
-            Some(p) => {
-                let mut m = 0u32;
-                for name in p {
-                    m |= 1 << parse_cubie(&name).ok_or_else(|| err(format!("unknown cubie '{}'", name)))?;
-                }
-                Some(m)
-            }
-        };
         let q = Query {
-            pieces,
             pure,
             extra_depth,
             max_length,
@@ -265,26 +560,18 @@ impl PySolver {
             move_blocks,
             ..Query::new(kind)
         };
-        let solver = &self.inner;
-        let (found, stats) = py.detach(|| solver.search(&q)).map_err(err)?;
+        let (found, stats) = match &self.inner {
+            AnySolver::S3(s) => {
+                let pieces = pieces.map(Bandage::parse_pieces).transpose()?;
+                find_in(py, s, Query { pieces, ..q })?
+            }
+            AnySolver::S4(s) => {
+                let pieces = pieces.map(Bandage4::parse_pieces).transpose()?;
+                find_in(py, s, Query { pieces, ..q })?
+            }
+        };
         self.last_stats = stats;
-        found
-            .iter()
-            .map(|f| {
-                let d = PyDict::new(py);
-                d.set_item("alg", format_alg(&f.alg))?;
-                d.set_item("length", f.length)?;
-                d.set_item("qtm", f.qtm)?;
-                d.set_item("effect", f.effect.describe())?;
-                d.set_item("pieces", f.effect.affected().iter().map(|&c| NAMES[c]).collect::<Vec<_>>())?;
-                d.set_item("pure", f.effect.is_pure())?;
-                d.set_item("kind", kind.name())?;
-                let mut c = Cube::new(solver.bandage.clone());
-                c.apply(&f.alg).map_err(err)?;
-                d.set_item("blocks", solver.bandage.describe_blocks(&c.state))?;
-                Ok(d)
-            })
-            .collect()
+        Ok(found)
     }
 
     /// Every position in the table that has the home shape (blocks possibly exchanged for
@@ -292,72 +579,69 @@ impl PySolver {
     /// completely, these are all the block-level effects of the puzzle with optimal lengths.
     ///
     /// Each dict: alg, length, blocks (block cycles, e.g. "(UFL+UF ULB+UB)"), effect (cubie level),
-    /// free_solved (every unglued piece is home).
+    /// free_solved (every unglued corner and edge is home).
     #[pyo3(signature = (max_results = 1000))]
     fn home_shape_effects<'py>(&self, py: Python<'py>, max_results: usize) -> PyResult<Vec<Bound<'py, PyDict>>> {
-        let solver = &self.inner;
-        let found = py.detach(|| crate::study::home_shape_states(solver));
-        let bandaged = solver.bandage.bandaged_cubies();
-        found
-            .iter()
-            .take(max_results)
-            .map(|&(d, k)| {
-                let st = crate::cube::State::unpack(k);
-                let alg = solver.path_to(&st).unwrap();
-                let dict = PyDict::new(py);
-                dict.set_item("alg", format_alg(&alg))?;
-                dict.set_item("length", d)?;
-                dict.set_item("blocks", solver.bandage.describe_blocks(&st))?;
-                dict.set_item("effect", st.effect().describe())?;
-                let free_solved = (0..N_CUBIES)
-                    .filter(|&c| bandaged & (1 << c) == 0 && crate::geometry::piece_type(c) != crate::geometry::PieceType::Center)
-                    .all(|c| st.slot(c) == c && st.ori(c) == 0);
-                dict.set_item("free_solved", free_solved)?;
-                Ok(dict)
-            })
-            .collect()
+        with_solver!(self, s => home_shapes_in(py, s, max_results))
     }
 
     /// Distance from solved of a cube state, if it lies within the table.
-    fn distance(&self, cube: &PyCube) -> Option<usize> {
-        self.inner.distance(&cube.inner.state)
+    fn distance(&self, cube: &PyCube) -> PyResult<Option<usize>> {
+        match (&self.inner, &cube.inner) {
+            (AnySolver::S3(s), AnyCube::C3(c)) => Ok(s.distance(&c.state)),
+            (AnySolver::S4(s), AnyCube::C4(c)) => Ok(s.distance(&c.state)),
+            _ => Err(err("the cube and the solver have different sizes".into())),
+        }
     }
 
     /// An optimal algorithm that *creates* the given state from solved (invert it to solve).
-    fn path_to(&self, cube: &PyCube) -> Option<String> {
-        self.inner.path_to(&cube.inner.state).map(|a| format_alg(&a))
+    fn path_to(&self, cube: &PyCube) -> PyResult<Option<String>> {
+        match (&self.inner, &cube.inner) {
+            (AnySolver::S3(s), AnyCube::C3(c)) => Ok(s.path_to(&c.state).map(|a| moves::format_alg(&a))),
+            (AnySolver::S4(s), AnyCube::C4(c)) => Ok(s.path_to(&c.state).map(|a| cube4::format_alg4(&a))),
+            _ => Err(err("the cube and the solver have different sizes".into())),
+        }
+    }
+
+    /// 3 or 4.
+    #[getter]
+    fn size(&self) -> usize {
+        match &self.inner {
+            AnySolver::S3(_) => 3,
+            AnySolver::S4(_) => 4,
+        }
     }
 
     #[getter]
     fn depth(&self) -> usize {
-        self.inner.depth
+        with_solver!(self, s => s.depth)
     }
 
     /// False if `max_nodes` stopped the table before the requested depth.
     #[getter]
     fn reached_max_depth(&self) -> bool {
-        self.inner.reached_max_depth
+        with_solver!(self, s => s.reached_max_depth)
     }
 
     #[getter]
     fn num_states(&self) -> usize {
-        self.inner.num_states()
+        with_solver!(self, s => s.num_states())
     }
 
     /// Number of distinct states at each distance from solved.
     #[getter]
     fn layer_sizes(&self) -> Vec<usize> {
-        self.inner.layer_sizes()
+        with_solver!(self, s => s.layer_sizes())
     }
 
     #[getter]
     fn moves(&self) -> Vec<String> {
-        self.inner.moves.iter().map(|&m| crate::moves::move_name(m)).collect()
+        with_solver!(self, s => moves_of(s))
     }
 
     #[getter]
     fn bandage(&self) -> Vec<Vec<String>> {
-        self.inner.bandage.block_names()
+        with_solver!(self, s => s.bandage.block_names())
     }
 
     /// Statistics of the last `find` call.
@@ -372,42 +656,58 @@ impl PySolver {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "Solver(depth={}, states={}, moves={}, blocks={})",
-            self.inner.depth,
-            self.inner.num_states(),
-            self.inner.moves.len(),
-            self.inner.bandage.blocks.len()
-        )
+        let (depth, states, moves, blocks) =
+            with_solver!(self, s => (s.depth, s.num_states(), s.moves.len(), s.bandage.n_blocks()));
+        format!("Solver(size={}, depth={}, states={}, moves={}, blocks={})", self.size(), depth, states, moves, blocks)
     }
+}
+
+fn parse_alg_sized(alg: &str, size: usize) -> PyResult<Alg> {
+    check_size(size)?;
+    if size == 3 { moves::parse_alg(alg) } else { cube4::parse_alg4(alg) }.map_err(err)
+}
+
+fn format_alg_sized(alg: &[Move], size: usize) -> String {
+    if size == 3 { moves::format_alg(alg) } else { cube4::format_alg4(alg) }
 }
 
 /// Normalise an algorithm: expand groups/commutators, cancel and merge moves.
 #[pyfunction]
-fn simplify_alg(alg: &str) -> PyResult<String> {
-    Ok(format_alg(&simplify(&parse_alg(alg).map_err(err)?)))
+#[pyo3(signature = (alg, size = 3))]
+fn simplify_alg(alg: &str, size: usize) -> PyResult<String> {
+    let a = parse_alg_sized(alg, size)?;
+    let s = if size == 3 { moves::simplify(&a) } else { cube4::simplify4(&a) };
+    Ok(format_alg_sized(&s, size))
 }
 
 /// Inverse of an algorithm.
 #[pyfunction]
-fn invert_alg(alg: &str) -> PyResult<String> {
-    Ok(format_alg(&invert(&parse_alg(alg).map_err(err)?)))
+#[pyo3(signature = (alg, size = 3))]
+fn invert_alg(alg: &str, size: usize) -> PyResult<String> {
+    Ok(format_alg_sized(&moves::invert(&parse_alg_sized(alg, size)?), size))
 }
 
 /// (length, qtm) of an algorithm; whole-cube rotations are free.
 #[pyfunction]
-fn alg_length(alg: &str) -> PyResult<(usize, usize)> {
-    let a = parse_alg(alg).map_err(err)?;
-    Ok((length(&a), qtm_length(&a)))
+#[pyo3(signature = (alg, size = 3))]
+fn alg_length(alg: &str, size: usize) -> PyResult<(usize, usize)> {
+    let a = parse_alg_sized(alg, size)?;
+    Ok(if size == 3 { Bandage::lengths(&a) } else { Bandage4::lengths(&a) })
 }
 
 /// Effect of an algorithm applied to a solved (optionally bandaged) cube.
 #[pyfunction]
-#[pyo3(signature = (alg, bandage = None))]
-fn analyze<'py>(py: Python<'py>, alg: &str, bandage: Option<&Bound<'_, PyAny>>) -> PyResult<Bound<'py, PyDict>> {
-    let mut c = Cube::new(bandage_from(bandage)?);
-    c.apply(&parse_alg(alg).map_err(err)?).map_err(err)?;
-    effect_dict(py, &c.state.effect())
+#[pyo3(signature = (alg, bandage = None, size = 3))]
+fn analyze<'py>(
+    py: Python<'py>,
+    alg: &str,
+    bandage: Option<&Bound<'_, PyAny>>,
+    size: usize,
+) -> PyResult<Bound<'py, PyDict>> {
+    let mut c = PyCube::new(bandage, None, size)?;
+    let a = c.parse(alg)?;
+    c.apply_alg(&a).map_err(err)?;
+    c.effect(py)
 }
 
 /// Difficulty KPIs of a bandaged cube with face turns (see the README's difficulty study).
@@ -539,10 +839,12 @@ fn random_bandage(bonds: usize, seed: u64) -> String {
     crate::study::random_bandage(&mut Rng::new(seed), bonds).spec()
 }
 
-/// Names of the 26 cubies: 8 corners, 12 edges, 6 centers.
+/// Cubie names. 3x3x3: 8 corners, 12 edges, 6 centers. 4x4x4: 8 corners, 24 wings, 24 centers.
 #[pyfunction]
-fn cubie_names() -> Vec<&'static str> {
-    NAMES.to_vec()
+#[pyo3(signature = (size = 3))]
+fn cubie_names(size: usize) -> PyResult<Vec<&'static str>> {
+    check_size(size)?;
+    Ok(if size == 3 { NAMES.to_vec() } else { geo4().names.clone() })
 }
 
 #[pymodule]

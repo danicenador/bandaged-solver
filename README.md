@@ -1,7 +1,8 @@
 # rubik
 
-A 3x3x3 Rubik's cube engine written in Rust, with **bandaged cube** support and a search engine
-for short algorithms: edge/corner **3-cycles**, **2-edge flips** and **2-corner twists**.
+A 3x3x3 and 4x4x4 Rubik's cube engine written in Rust, with **bandaged cube** support and a search
+engine for short algorithms: edge/corner/wing/center **3-cycles**, **2-edge flips** and **2-corner
+twists**.
 The engine is exposed to Python (PyO3) so you can explore it from Jupyter notebooks.
 
 ## Setup
@@ -34,14 +35,20 @@ s = rubik.Solver(bandage="UF+UFR+UR+U | DF+D", depth=40, max_nodes=4_000_000)
 s.find("edge3", pure=True, max_results=10)     # pure edge 3-cycles, shortest first
 s.find("corner_twist", pieces=["DFR", "DBL"])  # two specific corners
 rubik.to_dataframe(s.find("corner3"))
+
+c4 = rubik.Cube(size=4, bandage="UFR+UFr+URf+Ufr | Dfr+Dfl")   # 4x4x4, same API
+s4 = rubik.Solver(size=4, bandage="UFR+UFr+URf+Ufr")           # moves="stm", depth=4 by default
+s4.find("edge3", max_results=5)                                # wing 3-cycles
+s4.find("center3", max_results=5)
 ```
 
 | `kind`         | effect                                                        |
 |----------------|---------------------------------------------------------------|
-| `edge3`        | 3-cycle of edges, nothing else changes                        |
+| `edge3`        | 3-cycle of edges (wings on the 4x4x4), nothing else changes   |
 | `corner3`      | 3-cycle of corners                                            |
-| `edge_flip`    | two edges flipped in place                                    |
+| `edge_flip`    | two edges flipped in place (3x3x3 only)                       |
 | `corner_twist` | two corners twisted in place                                  |
+| `center3`      | 3-cycle of centers (4x4x4 only)                               |
 | `orient`       | up to 2 flips and/or up to 2 twists, everything in place      |
 | `any`          | anything confined to `pieces=[...]`                           |
 
@@ -57,20 +64,42 @@ algorithm (all block effects, when the table holds the whole puzzle), and `Cube.
 describes a position. See `notebooks/glued_blocks.ipynb`. Effects are written as cycles `(UF UR UB)` (the piece at UF goes
 to UR...), `*` marks a flipped edge, `+`/`-` a corner twisted clockwise/counter-clockwise.
 
-Move notation: `R U F L D B`, slices `M E S`, wide `r`/`Rw`, rotations `x y z`, suffixes `2` and
+Move notation (3x3x3): `R U F L D B`, slices `M E S`, wide `r`/`Rw`, rotations `x y z`, suffixes `2` and
 `'`, groups `(R U)3`, commutators `[R, U]`, conjugates `[F: R U R']`. Search move sets:
 `moves="htm"` (default, 18 face turns), `"stm"` (+ slices), `"wide"`, or explicit lists like
 `"U M"` / `"R U F2"`.
+
+### 4x4x4
+
+`Cube(size=4)` and `Solver(size=4)` work like the 3x3x3 ones; `analyze`, `simplify_alg`,
+`invert_alg`, `alg_length` and `cubie_names` take `size=4` too.
+
+* **Cubie names** have one letter per axis, uppercase for an outer layer and lowercase for an inner
+  one, in any order: corners `UFR`, wings `UFr` (on the UF edge, next to R) and centers `Ufr` (on U,
+  in the quadrant towards F and R). Any set of cubies can be glued, e.g. `"UFR+UFr+URf+Ufr"` (a 2x2x1
+  corner block) or `"Ufr+Ufl+Ubr+Ubl"` (a glued U center).
+* **Notation**: outer `R`, inner slice `2R`, both right layers `r` = `Rw`, rotation `x` (same for
+  every face). Search move sets: `"stm"` (default: every outer and inner layer, 36 moves), `"htm"`
+  (outer faces), `"inner"`, `"wide"`, or a list such as `"R 2R U"`.
+* **Identical centers**: the four centers of a colour look the same, so unless they are glued they
+  are compared by colour only. Effects and the search see a state through that lens: the OLL parity
+  `2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2` reads as a single wing swap. Glued centers keep
+  their identity, since the block shows it.
+* Wings cannot be flipped in place, so `edge_flip` does not apply. The difficulty study and human
+  index below are 3x3x3 only.
 
 ## How it works
 
 * **Model** (`src/geometry.rs`, `src/cube.rs`): each of the 26 cubies stores one of the 24 cube
   rotations, which gives both its position and orientation. Layer turns are table lookups.
-  Center spin is ignored, except for bandaged centers.
+  Center spin is ignored, except for bandaged centers. The 4x4x4 (`src/cube4.rs`) uses the same
+  scheme for its 56 cubies on doubled coordinates (-3, -1, 1, 3); its packed key relabels free
+  centers by colour (`Bandage4::canonical`).
 * **Bandaging**: a bandage is a set of blocks (bitmasks of cubies). A turn is legal when no block
   has cubies both inside and outside the turning layers. Blocks are attached to cubies, so they
   move with the puzzle.
-* **Search** (`src/search.rs`): a breadth-first table holds every distinct state within `depth`
+* **Search** (`src/search.rs`, generic over the `Puzzle` trait, implemented by `Bandage` and
+  `Bandage4`): a breadth-first table holds every distinct state within `depth`
   legal moves of solved. If two sequences A and C reach states that agree on every piece outside
   the target set, then `A C'` only affects the target pieces. Grouping the table by a masked key
   finds all such pairs (algorithms up to `2*depth` moves). `extra_depth` extends the C side by
@@ -78,8 +107,10 @@ Move notation: `R U F L D B`, slices `M E S`, wide `r`/`Rw`, rotations `x y z`, 
   cube. It is kept only if every move is legal, the bandage shape is restored and the effect
   matches the query.
 
-Costs: about 40 bytes per stored state. The unbandaged cube at depth 6 is 8.2M states (~2 s to
-build). On bandaged cubes the branching factor is lower, so the table reaches much deeper.
+Costs: about 40 bytes per stored state (about 60 on the 4x4x4). The unbandaged cube at depth 6 is
+8.2M states (~2 s to build). On bandaged cubes the branching factor is lower, so the table reaches
+much deeper. The unbandaged 4x4x4 at depth 4 in `stm` holds 838k states, enough for the
+8-move wing, center and corner 3-cycles.
 
 ## Difficulty study of bandaged cubes
 

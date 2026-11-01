@@ -432,7 +432,7 @@ impl Cube {
 
 // ---- effect analysis ----
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Effect {
     /// Cycles of cubies: each entry is (cubie, orientation at its destination). The piece starting at
     /// the slot of entry k moves to the slot of entry k+1.
@@ -503,25 +503,25 @@ impl Effect {
     /// Human readable form, e.g. `(UF UR UB)`, `(URF UBR+ DFR-)`, `UF* UB*`, `URF+ UBR-`.
     /// `*` marks a flipped edge, `+`/`-` a corner twisted clockwise/counter-clockwise.
     pub fn describe(&self) -> String {
-        let mark = |c: usize, o: u8| -> String {
-            let m = match (piece_type(c), o) {
-                (_, 0) => "",
-                (PieceType::Edge, _) => "*",
-                (_, 1) => "+",
-                _ => "-",
-            };
-            format!("{}{}", NAMES[c], m)
+        self.describe_with(&NAMES)
+    }
+
+    /// `describe` with the cubie names of another cube size.
+    pub fn describe_with(&self, names: &[&str]) -> String {
+        let edge = |c: usize, o: u8| format!("{}{}", names[c], if o == 0 { "" } else { "*" });
+        let corner = |c: usize, o: u8| format!("{}{}", names[c], ["", "+", "-"][o as usize]);
+        let cycle = |cyc: &Vec<(usize, u8)>, mark: &dyn Fn(usize, u8) -> String| {
+            format!("({})", cyc.iter().map(|&(c, o)| mark(c, o)).collect::<Vec<_>>().join(" "))
         };
         let mut parts: Vec<String> = Vec::new();
-        for cyc in self.edge_cycles.iter().chain(&self.corner_cycles) {
-            parts.push(format!("({})", cyc.iter().map(|&(c, o)| mark(c, o)).collect::<Vec<_>>().join(" ")));
-        }
-        parts.extend(self.flipped.iter().map(|&c| mark(c, 1)));
-        parts.extend(self.twisted.iter().map(|&(c, o)| mark(c, o)));
+        parts.extend(self.edge_cycles.iter().map(|c| cycle(c, &edge)));
+        parts.extend(self.corner_cycles.iter().map(|c| cycle(c, &corner)));
+        parts.extend(self.flipped.iter().map(|&c| edge(c, 1)));
+        parts.extend(self.twisted.iter().map(|&(c, o)| corner(c, o)));
         for cyc in &self.center_cycles {
             let mut s = String::from("(");
             for (i, &c) in cyc.iter().enumerate() {
-                let _ = write!(s, "{}{}", if i > 0 { " " } else { "" }, NAMES[c]);
+                let _ = write!(s, "{}{}", if i > 0 { " " } else { "" }, names[c]);
             }
             s.push(')');
             parts.push(s);
